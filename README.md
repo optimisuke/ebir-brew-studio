@@ -31,14 +31,7 @@ python3 -m http.server 8000
 # ブラウザで http://localhost:8000 を開く
 ```
 
-## 店舗情報
-
-| | |
-|---|---|
-| 所在地 | 〒658-0052 兵庫県神戸市東灘区住吉東町3丁目7−12 |
-| TEL | 078-600-0314 |
-| Mail | ebeer.kobe@gmail.com |
-| 営業時間 | 月〜金 17:00–23:00 / 土・日 12:00–23:00 |
+## リンク
 
 - Instagram: <https://www.instagram.com/ebirbrewstudio/>
 - オンラインショップ: <https://ebirbrewstudio.square.site/>
