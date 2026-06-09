@@ -44,7 +44,8 @@
 
 ### ヘッダー（共通）
 - `sticky top-0`、`bg-paper/90 backdrop-blur`、下境界 `border-ink/10`、`h-16`
-- 左: ロゴ（`assets/logo.jpeg`, `h-9`）＋ サイト名 ／ 右: ナビ（sm 以上）＋ ゴールドの「Shop」ピル
+- 左: ロゴ（`assets/logo.jpeg`, `h-9`）＋ サイト名（＋ `β` タグ）／ 右: ナビ（sm 以上）と「Shop」ピルを 1 グループにまとめて右寄せ
+- ナビの「My Beers」と各 APP 導線にはゴールドの `APP` バッジを付与
 
 ### ヒーロー（トップ）
 - `grid lg:grid-cols-2`。**DOM 順は「コピー → 画像」**
@@ -53,6 +54,12 @@
 - ロゴ `h-14`、サブタイトル `tracking-widest text-ink/50`
 - ボタン: 主＝ゴールド塗り、副＝`border-ink` 枠線
 - キービジュアル（`assets/key-visual.jpg`）: `rounded-3xl ring-1 ring-ink/10`。スマホ `max-w-[220px]`、PC は列いっぱい
+- 動き（CSSのみ・ビールらしさ）:
+  - **泡**: `.bubbles` レイヤー（`section` を `relative overflow-hidden`、コンテンツは `z-10`）。ゴールドの小円が `@keyframes rise` で立ちのぼる
+  - **入場**: `.fade-up`（コピー、キービジュアルは `delay-2` でスタッガー）
+  - **ゆらぎ**: キービジュアルに `.floaty`（ゆっくり上下）
+  - `prefers-reduced-motion` 時はいずれも無効化
+- リロード時は常に最上部から表示（`history.scrollRestoration = 'manual'`）
 
 ### Story
 - `bg-ink text-paper` の反転セクション。ラベル `text-gold`、本文 `leading-loose text-paper/90`、段落間 `space-y-6`
