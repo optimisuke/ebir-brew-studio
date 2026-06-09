@@ -1,0 +1,9 @@
+# ブラウザ確認の一時ファイル
+.playwright-cli/
+
+# OS / エディタ
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/

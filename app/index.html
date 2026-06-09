@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>マイビール記録｜ÉBIR BREW STUDIO</title>
+<meta name="description" content="飲んだエビールのビールを記録するテイスティングノート。データはこの端末内にだけ保存されます。" />
+<link rel="icon" href="../assets/logo.jpeg" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'system-ui', '-apple-system', '"Hiragino Kaku Gothic ProN"', '"Noto Sans JP"', 'sans-serif'],
+        },
+        colors: { ink: '#141414', paper: '#ffffff', cream: '#FBF7EF', gold: '#E2A52A', goldDark: '#C0871C' },
+      },
+    },
+  };
+</script>
+<style>
+  body { -webkit-font-smoothing: antialiased; }
+  /* 横スクロールのスクロールバーを隠す */
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+</style>
+</head>
+
+<body class="bg-paper text-ink font-sans antialiased">
+
+<!-- Header -->
+<header class="sticky top-0 z-40 bg-paper/90 backdrop-blur border-b border-ink/10">
+  <div class="mx-auto max-w-2xl px-5 h-16 flex items-center justify-between">
+    <a href="../" class="flex items-center gap-2.5">
+      <img src="../assets/logo.jpeg" alt="ÉBIR BREW STUDIO" class="h-9 w-auto" />
+      <span class="flex items-center gap-1.5">
+        <span class="font-semibold tracking-wide text-sm">My Beers</span>
+        <span class="text-[10px] font-bold leading-none tracking-widest text-ink bg-gold rounded px-1.5 py-1">APP</span>
+        <span class="text-[10px] font-semibold leading-none text-ink/50 ring-1 ring-ink/20 rounded px-1 py-0.5">β</span>
+      </span>
+    </a>
+    <a href="../" class="text-xs text-ink/60 hover:text-gold transition">← サイトに戻る</a>
+  </div>
+</header>
+
+<main class="mx-auto max-w-2xl px-5 pb-24">
+
+  <!-- Intro -->
+  <section class="pt-10 pb-2 text-center">
+    <h1 class="text-2xl font-bold">マイビール記録</h1>
+    <p class="mt-3 text-sm text-ink/60 leading-relaxed">
+      飲んだ一杯の感想を残す<br />
+      テイスティングノート<br />
+      記録はあなたの端末の中だけに保存されます
+    </p>
+  </section>
+
+  <form id="form" class="mt-8 space-y-8">
+
+    <!-- Step 1: ビールを選ぶ（横スクロール） -->
+    <section>
+      <h2 class="text-sm font-semibold"><span class="text-gold">1.</span> ビールを選ぶ</h2>
+      <div id="beers" role="radiogroup" aria-label="ビールを選ぶ"
+           class="mt-4 flex items-start gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-5 px-5 scrollbar-hide">
+        <!-- ビールカードを JS で生成 -->
+      </div>
+    </section>
+
+    <!-- Step 2: 評価とメモ -->
+    <section class="rounded-2xl border border-ink/10 p-5 space-y-5">
+      <h2 class="text-sm font-semibold"><span class="text-gold">2.</span> 評価とメモ</h2>
+
+      <p id="selected" class="text-sm text-ink/50">上からビールを選んでください。</p>
+
+      <div>
+        <span class="block text-sm font-medium">評価</span>
+        <div id="stars" class="mt-1.5 flex gap-1 text-3xl text-ink/20 select-none" role="radiogroup" aria-label="評価">
+          <button type="button" data-val="1" class="star transition hover:scale-110" aria-label="星1">★</button>
+          <button type="button" data-val="2" class="star transition hover:scale-110" aria-label="星2">★</button>
+          <button type="button" data-val="3" class="star transition hover:scale-110" aria-label="星3">★</button>
+          <button type="button" data-val="4" class="star transition hover:scale-110" aria-label="星4">★</button>
+          <button type="button" data-val="5" class="star transition hover:scale-110" aria-label="星5">★</button>
+        </div>
+        <input id="rating" type="hidden" value="0" />
+      </div>
+
+      <div>
+        <label for="note" class="block text-sm font-medium">メモ <span class="text-ink/40 font-normal">（任意）</span></label>
+        <textarea id="note" rows="3" placeholder="香り、味わい、その日のことなど"
+                  class="mt-1.5 w-full rounded-xl border border-ink/15 px-4 py-3 text-base resize-y focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10"></textarea>
+      </div>
+
+      <button id="submit" type="submit" disabled
+              class="w-full rounded-xl bg-gold text-ink py-3.5 text-sm font-semibold hover:bg-goldDark hover:text-paper transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-gold disabled:hover:text-ink">
+        記録する
+      </button>
+    </section>
+  </form>
+
+  <!-- List -->
+  <section class="mt-12">
+    <div class="flex items-baseline justify-between">
+      <h2 class="text-sm font-semibold text-ink/40 uppercase tracking-widest">きろく</h2>
+      <span id="count" class="text-xs text-ink/40"></span>
+    </div>
+    <div id="empty" class="mt-6 rounded-2xl border border-dashed border-ink/15 py-14 text-center text-sm text-ink/40">
+      まだ記録がありません。<br />最初の一杯を記録してみましょう。
+    </div>
+    <ul id="list" class="mt-6 space-y-4"></ul>
+  </section>
+
+</main>
+
+<script>
+  // === ビール一覧（固定リスト）=====================================
+  // ここに1件足すだけでカルーセルに追加されます。
+  // img があれば写真、なければ color のビール色スウォッチで表示。
+  const BEERS = [
+    { id: 'aura',    name: 'AURA DE NADA',    style: 'Sour ・ 5.0% ・ IBU 7',  img: '../assets/aura-de-nada.jpg' },
+    { id: 'braggot', name: 'BRAGGOT WHISPER', style: 'Braggot ・ 5.5% ・ IBU 33', img: '../assets/braggot-whisper.jpg' },
+    { id: 'pine',    name: 'PINE ME DRIFT',   style: 'IPA ・ 8.0% ・ IBU 70',  color: '#B5651D' },
+    { id: 'lemon',   name: 'Peel My Lemon',   style: 'IPA ・ 5.0%',            color: '#E6B422' },
+    { id: 'forty',   name: 'FORTY OF HOPE',   style: '',                       color: '#C9852B' },
+    { id: 'brut',    name: 'IT BRUT',         style: 'Brut',                   color: '#EBD27A' },
+  ];
+
+  const STORAGE_KEY = 'ebir.mybeers.v1';
+  const load = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; } };
+  const save = (items) => localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+
+  const beersEl = document.getElementById('beers');
+  const selectedEl = document.getElementById('selected');
+  const ratingEl = document.getElementById('rating');
+  const starsEl = document.getElementById('stars');
+  const noteEl = document.getElementById('note');
+  const submitEl = document.getElementById('submit');
+  const form = document.getElementById('form');
+  const listEl = document.getElementById('list');
+  const emptyEl = document.getElementById('empty');
+  const countEl = document.getElementById('count');
+
+  let selectedId = null;
+
+  const escape = (s) => String(s).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // ビール色スウォッチ（泡 → ビールのグラデーション）
+  const swatch = (color) =>
+    `background:linear-gradient(180deg,#FBF7EF 0%,#FBF7EF 16%,${color} 42%,${color} 100%)`;
+
+  // 視覚パーツ（写真 or スウォッチ）
+  const visual = (b, extraClass) =>
+    b.img
+      ? `<img src="${b.img}" alt="${escape(b.name)}" class="w-full h-full object-cover ${extraClass || ''}" />`
+      : `<div class="w-full h-full ${extraClass || ''}" style="${swatch(b.color)}"></div>`;
+
+  // === Step1: カルーセル生成 =======================================
+  const renderBeers = () => {
+    beersEl.innerHTML = BEERS.map((b) => `
+      <button type="button" data-id="${b.id}" role="radio" aria-checked="false"
+              class="beer-card snap-start shrink-0 w-32 text-left focus:outline-none">
+        <div class="card-visual aspect-[3/4] rounded-2xl overflow-hidden ring-1 ring-ink/10 transition">
+          ${visual(b)}
+        </div>
+        <p class="mt-2 text-sm font-medium leading-tight break-words min-h-[2.5em]">${escape(b.name)}</p>
+        ${b.style ? `<p class="text-xs text-gold leading-tight mt-0.5">${escape(b.style)}</p>` : ''}
+      </button>
+    `).join('');
+  };
+
+  const selectBeer = (id) => {
+    selectedId = id;
+    beersEl.querySelectorAll('.beer-card').forEach((card) => {
+      const on = card.dataset.id === id;
+      card.setAttribute('aria-checked', on ? 'true' : 'false');
+      card.querySelector('.card-visual').classList.toggle('ring-2', on);
+      card.querySelector('.card-visual').classList.toggle('ring-gold', on);
+      card.querySelector('.card-visual').classList.toggle('ring-ink/10', !on);
+    });
+    const b = BEERS.find((x) => x.id === id);
+    selectedEl.innerHTML = `選択中：<span class="font-semibold text-ink">${escape(b.name)}</span>`;
+    submitEl.disabled = false;
+  };
+
+  beersEl.addEventListener('click', (e) => {
+    const card = e.target.closest('.beer-card');
+    if (card) selectBeer(card.dataset.id);
+  });
+
+  // === 星評価 ======================================================
+  const paintStars = (val) => {
+    starsEl.querySelectorAll('.star').forEach((s) => {
+      const on = Number(s.dataset.val) <= val;
+      s.classList.toggle('text-gold', on);
+      s.classList.toggle('text-ink/20', !on);
+    });
+  };
+  starsEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.star');
+    if (!btn) return;
+    const val = Number(btn.dataset.val);
+    const next = Number(ratingEl.value) === val ? 0 : val;
+    ratingEl.value = next;
+    paintStars(next);
+  });
+
+  // === 表示ヘルパー ================================================
+  const fmtDate = (iso) => {
+    const d = new Date(iso);
+    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const starText = (n) => '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n);
+
+  // === 一覧 ========================================================
+  const render = () => {
+    const items = load();
+    emptyEl.classList.toggle('hidden', items.length > 0);
+    countEl.textContent = items.length ? `${items.length}件` : '';
+    listEl.innerHTML = items.map((it) => {
+      const thumb = it.img
+        ? `<img src="${it.img}" alt="" class="w-full h-full object-cover" />`
+        : `<div class="w-full h-full" style="${swatch(it.color || '#C9852B')}"></div>`;
+      return `
+      <li class="rounded-2xl border border-ink/10 p-4 flex gap-4">
+        <div class="shrink-0 w-14 h-14 rounded-xl overflow-hidden ring-1 ring-ink/10">${thumb}</div>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h3 class="font-semibold break-words leading-tight">${escape(it.name)}</h3>
+              <p class="mt-0.5 text-xs text-ink/40">${fmtDate(it.date)}</p>
+            </div>
+            <button data-del="${it.id}" aria-label="削除" class="shrink-0 text-ink/30 hover:text-gold transition text-sm">削除</button>
+          </div>
+          ${it.rating ? `<p class="mt-1.5 text-gold tracking-widest text-sm">${starText(it.rating)}</p>` : ''}
+          ${it.note ? `<p class="mt-1.5 text-sm text-ink/70 whitespace-pre-wrap break-words">${escape(it.note)}</p>` : ''}
+        </div>
+      </li>`;
+    }).join('');
+  };
+
+  // === 追加 ========================================================
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const b = BEERS.find((x) => x.id === selectedId);
+    if (!b) return;
+    const items = load();
+    items.unshift({
+      id: String(Date.now()) + Math.random().toString(16).slice(2, 8),
+      beerId: b.id,
+      name: b.name,
+      img: b.img || null,
+      color: b.color || null,
+      rating: Number(ratingEl.value) || 0,
+      note: noteEl.value.trim(),
+      date: new Date().toISOString(),
+    });
+    save(items);
+    // リセット
+    selectedId = null;
+    selectedEl.textContent = '上からビールを選んでください。';
+    submitEl.disabled = true;
+    beersEl.querySelectorAll('.beer-card').forEach((c) => {
+      c.setAttribute('aria-checked', 'false');
+      const v = c.querySelector('.card-visual');
+      v.classList.remove('ring-2', 'ring-gold');
+      v.classList.add('ring-ink/10');
+    });
+    ratingEl.value = '0';
+    paintStars(0);
+    noteEl.value = '';
+    render();
+  });
+
+  // === 削除 ========================================================
+  listEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-del]');
+    if (!btn) return;
+    if (!confirm('この記録を削除しますか？')) return;
+    save(load().filter((it) => it.id !== btn.dataset.del));
+    render();
+  });
+
+  renderBeers();
+  render();
+</script>
+
+</body>
+</html>
