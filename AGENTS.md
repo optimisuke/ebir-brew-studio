@@ -27,10 +27,20 @@
 │   └── index.html    # 来店者向けの localStorage アプリ（内容は検討中）
 ├── assets/           # ロゴ・画像・favicon など
 │   └── logo.jpeg
+├── robots.txt        # クローラ許可 + sitemap の場所
+├── sitemap.xml       # クロール対象 URL 一覧（トップ / app）
+├── TODO.md           # 今後の作業メモ（独自ドメイン設定 など）
 ├── README.md
 ├── AGENTS.md
 └── CLAUDE.md         # @AGENTS.md のみ
 ```
+
+## SEO
+
+- 公開 URL は `https://optimisuke.github.io/ebir-brew-studio/`（GitHub Pages のデフォルト）。`canonical` / OGP / sitemap はこの絶対 URL を基準にする。独自ドメイン（CNAME）を設定したら全ファイルの URL を差し替える
+- 各ページの `<head>` に `canonical` / OGP / Twitter カード / `robots` を記述。OGP 画像は `assets/key-visual.jpg`
+- トップの `<head>` に JSON-LD 構造化データ（`Brewery`＋`BarOrPub` と `WebSite`）を記述。所在地・営業時間・SNS（Instagram / Square）を反映する。**営業時間や所在地を変えたら JSON-LD も同時に更新する**
+- 電話・メールは非公開のため構造化データにも含めない（公開する場合は `telephone` 等を追加）
 
 ## デザイン指針
 

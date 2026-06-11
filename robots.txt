@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://optimisuke.github.io/ebir-brew-studio/sitemap.xml

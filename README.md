@@ -40,6 +40,8 @@ python3 -m http.server 8000
 
 静的ファイルのみなので、GitHub Pages の対象ブランチ／ディレクトリを指定するだけで公開できます。
 
+今後の作業メモは [TODO.md](./TODO.md) を参照してください。
+
 ---
 
 開発者・AI エージェント向けの詳細は [AGENTS.md](./AGENTS.md) を参照してください。
