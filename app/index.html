@@ -77,14 +77,26 @@
   @keyframes toastIn { from { opacity: 0; transform: translateY(-14px) scale(.95) } to { opacity: 1; transform: translateY(0) scale(1) } }
   @keyframes toastPop { 0% { transform: scale(.4) rotate(-12deg) } 60% { transform: scale(1.25) rotate(6deg) } 100% { transform: scale(1) rotate(0) } }
 
-  /* 称号メダル: たまにキランと光が走る */
-  .medal::after { content: ""; position: absolute; top: -60%; left: -120%; width: 55%; height: 220%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,.85), transparent);
-    transform: rotate(20deg); animation: medalShine 4s ease-in-out infinite; pointer-events: none; }
-  @keyframes medalShine { 0% { left: -120% } 15% { left: 170% } 100% { left: 170% } }
+  /* 称号メダル（六角形・フラット）。色はティアごとに JS でインライン指定 */
+  .hexmedal { position: relative; isolation: isolate;
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    filter: drop-shadow(0 2px 2px rgba(20,20,20,.32)); }
+  .hexmedal > .hex-inner { position: absolute; inset: 3px; z-index: 0;
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
+  .hexmedal > .hex-content { position: relative; z-index: 1; transform: translateY(6px); }
+  /* ロゴマーク（メダル色でリカラー + 彫り込み風エンボス）*/
+  .hexmedal .hex-mark { -webkit-mask: url(../assets/logo-mark.png) center/contain no-repeat;
+    mask: url(../assets/logo-mark.png) center/contain no-repeat;
+    filter: drop-shadow(0 1px 0 rgba(255,255,255,.5)) drop-shadow(0 -1px 1px rgba(0,0,0,.25)); }
+  /* たまにキランと光が走る */
+  .hexmedal::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+    background: linear-gradient(115deg, transparent 42%, rgba(255,255,255,.85) 50%, transparent 58%);
+    background-size: 250% 100%; background-position: 150% 0;
+    animation: medalShine 4s ease-in-out infinite; }
+  @keyframes medalShine { 0% { background-position: 150% 0 } 15% { background-position: -60% 0 } 100% { background-position: -60% 0 } }
 
   @media (prefers-reduced-motion: reduce) {
-    .sheet-overlay, .sheet, .celebrate, .celebrate-card, .celebrate-card .trophy, .spark, .toast, .toast .ic, .medal::after { animation: none !important; }
+    .sheet-overlay, .sheet, .celebrate, .celebrate-card, .celebrate-card .trophy, .spark, .toast, .toast .ic, .hexmedal::after { animation: none !important; }
   }
 </style>
 </head>
@@ -290,11 +302,12 @@ const compColor = (r) =>
 
 // 称号のティアカラー（Lvが上がるほどストーン→ブロンズ→アンバー→金へ昇格）
 const TITLE_TIERS = {
-  1: { light: '#D9D3C7', base: '#A7A090', dark: '#7C766A' }, // 新麦: ストーン
-  2: { light: '#E7C9A0', base: '#C58E5A', dark: '#96652F' }, // 麦汁: ライトブロンズ
-  3: { light: '#E4B779', base: '#B5781F', dark: '#8A5A12' }, // 発酵: ブロンズ
-  4: { light: '#F1CE72', base: '#D29A22', dark: '#A2730F' }, // 熟成: アンバー
-  5: { light: '#F6D98C', base: '#E2A52A', dark: '#B97F16' }, // 麦酒: ゴールド
+  // base=塗り, light=リム明色, dark=リム暗色, mark=ロゴと数字（同系の濃トーン）
+  1: { base: '#A7A090', light: '#C9C3B7', dark: '#7C766A', mark: '#4F4A42' }, // 新麦: ストーン
+  2: { base: '#C58E5A', light: '#E2B585', dark: '#96652F', mark: '#5E3E18' }, // 麦汁: ライトブロンズ
+  3: { base: '#B5781F', light: '#D8A24A', dark: '#8A5A12', mark: '#553809' }, // 発酵: ブロンズ
+  4: { base: '#D29A22', light: '#EBBE4E', dark: '#A2730F', mark: '#6E4D08' }, // 熟成: アンバー
+  5: { base: '#E2A52A', light: '#F4CC5C', dark: '#B97F16', mark: '#7E560C' }, // 麦酒: ゴールド
 };
 const tierOf = (lv) => TITLE_TIERS[lv] || TITLE_TIERS[1];
 
@@ -302,8 +315,6 @@ const tierOf = (lv) => TITLE_TIERS[lv] || TITLE_TIERS[1];
 function titleCard(ctx) {
   const { current, next, days } = titleInfo(ctx.visitDayCount);
   const tier = tierOf(current.lv);
-  // フラットデザイン: 単色塗り + 濃いめのリム（光沢グラデーションなし）
-  const medalStyle = `background:${tier.base};box-shadow:inset 0 0 0 3px ${tier.dark}`;
   // Lv1→最高位の「ぜんたいでどこまで来たか」を段階バーで表示（到達した段は各Lvのティア色で塗る）
   const steps = TITLES.map((t) =>
     `<span class="h-1.5 flex-1 rounded-full" style="background:${days >= t.days ? tierOf(t.lv).base : 'rgba(20,20,20,.1)'}"></span>`).join('');
@@ -313,9 +324,12 @@ function titleCard(ctx) {
   return `
     <div class="rounded-2xl border border-ink/10 p-3 flex flex-col">
       <div class="flex items-center gap-2.5">
-        <div class="medal relative overflow-hidden shrink-0 grid place-items-center w-11 h-11 rounded-full text-ink leading-none" style="${medalStyle}">
-          <span class="text-[7px] font-bold tracking-widest -mb-1.5">LV</span>
-          <span class="text-base font-extrabold tabular-nums -mt-1">${current.lv}</span>
+        <div class="hexmedal shrink-0 w-14 h-12" style="background:linear-gradient(140deg, ${tier.light} 0%, ${tier.dark} 52%, ${tier.mark} 100%)">
+          <span class="hex-inner" style="background:${tier.base}"></span>
+          <span class="hex-content absolute inset-0 flex flex-col items-center justify-center leading-none">
+            <span class="hex-mark w-7 h-7" style="background:${tier.mark}"></span>
+            <span class="text-[9px] font-extrabold tabular-nums mt-px" style="color:${tier.mark}">Lv.${current.lv}</span>
+          </span>
         </div>
         <div class="min-w-0">
           <p class="text-[10px] text-ink/40 tracking-widest font-semibold leading-none">称号</p>
