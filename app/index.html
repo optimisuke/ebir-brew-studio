@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>マイエビール記録｜ÉBIR BREW STUDIO</title>
-<meta name="description" content="飲んだエビールのビールを記録するテイスティングノート。データはこの端末内にだけ保存されます。" />
+<meta name="description" content="ÉBIR BREW STUDIO のタップリストと、飲んだ一杯の記録。コンプ率やバッジで一杯をもっと楽しく。データはこの端末内にだけ保存されます。" />
 <meta name="robots" content="index, follow" />
 <meta name="theme-color" content="#141414" />
 <link rel="canonical" href="https://optimisuke.github.io/ebir-brew-studio/app/" />
@@ -13,7 +13,7 @@
 
 <!-- OGP -->
 <meta property="og:title" content="マイエビール記録｜ÉBIR BREW STUDIO" />
-<meta property="og:description" content="飲んだエビールのビールを記録するテイスティングノート。データはこの端末内にだけ保存されます。" />
+<meta property="og:description" content="ÉBIR BREW STUDIO のタップリストと、飲んだ一杯の記録。コンプ率やバッジで一杯をもっと楽しく。" />
 <meta property="og:image" content="https://optimisuke.github.io/ebir-brew-studio/assets/ogp.jpg" />
 <meta property="og:url" content="https://optimisuke.github.io/ebir-brew-studio/app/" />
 <meta property="og:type" content="website" />
@@ -44,6 +44,42 @@
   /* 横スクロールのスクロールバーを隠す */
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
   .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+  /* 記録シート（下からスライドアップ） */
+  .sheet-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; justify-content: center;
+    background: rgba(20,20,20,.45); animation: ovFade .2s ease; }
+  .sheet { width: 100%; max-width: 42rem; background: #fff; border-radius: 1.5rem 1.5rem 0 0;
+    max-height: 90vh; overflow-y: auto; animation: sheetUp .28s cubic-bezier(.2,.9,.3,1); }
+  @keyframes ovFade { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes sheetUp { from { transform: translateY(100%) } to { transform: translateY(0) } }
+
+  /* コンプ達成の金色演出 */
+  .celebrate { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center;
+    background: radial-gradient(circle at 50% 40%, rgba(226,165,42,.28), rgba(20,20,20,.78) 70%);
+    animation: celebFade .4s ease; }
+  .celebrate-card { text-align: center; color: #fff; animation: celebPop .5s cubic-bezier(.2,1.2,.3,1); }
+  .celebrate-card .trophy { font-size: 4rem; filter: drop-shadow(0 0 18px rgba(226,165,42,.9)); animation: celebPulse 1.4s ease-in-out infinite; }
+  .spark { position: absolute; width: 8px; height: 8px; border-radius: 9999px; background: #E2A52A;
+    box-shadow: 0 0 10px 2px rgba(226,165,42,.9); animation: sparkUp 1.6s ease-out infinite; }
+  @keyframes celebFade { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes celebPop { from { opacity: 0; transform: scale(.7) } to { opacity: 1; transform: scale(1) } }
+  @keyframes celebPulse { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.12) } }
+  @keyframes sparkUp { 0% { opacity: 0; transform: translateY(20px) scale(.5) } 20% { opacity: 1 }
+    100% { opacity: 0; transform: translateY(-120px) scale(1) } }
+
+  /* バッジ獲得トースト */
+  .toast-wrap { position: fixed; top: 5rem; left: 0; right: 0; z-index: 55;
+    display: flex; flex-direction: column; align-items: center; gap: .5rem; pointer-events: none; }
+  .toast { display: flex; align-items: center; gap: .75rem; background: #fff; color: #141414;
+    border: 1px solid rgba(226,165,42,.5); box-shadow: 0 8px 24px rgba(20,20,20,.14);
+    border-radius: 9999px; padding: .6rem 1.1rem .6rem .8rem; animation: toastIn .35s cubic-bezier(.2,1.1,.3,1); }
+  .toast .ic { font-size: 1.6rem; animation: toastPop .5s cubic-bezier(.2,1.4,.3,1); }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(-14px) scale(.95) } to { opacity: 1; transform: translateY(0) scale(1) } }
+  @keyframes toastPop { 0% { transform: scale(.4) rotate(-12deg) } 60% { transform: scale(1.25) rotate(6deg) } 100% { transform: scale(1) rotate(0) } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sheet-overlay, .sheet, .celebrate, .celebrate-card, .celebrate-card .trophy, .spark, .toast, .toast .ic { animation: none !important; }
+  }
 </style>
 </head>
 
@@ -64,245 +100,485 @@
   </div>
 </header>
 
-<main class="mx-auto max-w-2xl px-5 pb-24">
+<main id="app" class="mx-auto max-w-2xl px-5 pt-6 pb-20"><!-- JS で描画 --></main>
 
-  <!-- Intro -->
-  <section class="pt-10 pb-2 text-center">
-    <h1 class="text-2xl font-bold">マイエビール記録</h1>
-    <p class="mt-3 text-sm text-ink/60 leading-relaxed">
-      飲んだ一杯の感想を残す<br />
-      テイスティングノート<br />
-      記録はあなたの端末の中だけに保存されます
-    </p>
-  </section>
+<script>
+/* =====================================================================
+   ÉBIR BREW STUDIO — 来店者向けアプリ（タップリスト + 飲んだ記録 / 1ページ）
+   HTML + 素のJS のみ。サーバーなし。記録は localStorage に保存。
+   ===================================================================== */
 
-  <form id="form" class="mt-8 space-y-8">
+/* === ビール一覧（固定リスト / 単一の情報源）=========================
+   1件足すだけでタップリストに追加されます。
+   - abv: 数値（%）。不明は null   - ibu: 数値。不明は null
+   - img があれば写真、なければ color のビール色スウォッチで表示
+   - active:false にすると一覧から外れます（記録とバッジ「伝説の一杯」には残る）
+   - new:true は隠しバッジ「新作ハンター」の対象
+   - desc: 説明文（店主が随時追記。空でも可）                          */
+const BEERS = [
+  { id: 'aura',    name: 'AURA DE NADA',    style: 'Sour',    abv: 5.0, ibu: 7,    img: '../assets/aura-de-nada.jpg',    desc: '' },
+  { id: 'braggot', name: 'BRAGGOT WHISPER', style: 'Braggot', abv: 5.5, ibu: 33,   img: '../assets/braggot-whisper.jpg', desc: '' },
+  { id: 'pine',    name: 'PINE ME DRIFT',   style: 'IPA',     abv: 8.0, ibu: 70,   color: '#B5651D', desc: '' },
+  { id: 'lemon',   name: 'Peel My Lemon',   style: 'IPA',     abv: 5.0, ibu: null, color: '#E6B422', desc: '', new: true },
+  { id: 'forty',   name: 'FORTY OF HOPE',   style: '',        abv: null, ibu: null, color: '#C9852B', desc: '' },
+  { id: 'brut',    name: 'IT BRUT',         style: 'Brut',    abv: null, ibu: null, color: '#EBD27A', desc: '' },
+];
+const beerById = (id) => BEERS.find((b) => b.id === id);
+const isActive = (b) => b.active !== false;
 
-    <!-- Step 1: ビールを選ぶ（横スクロール） -->
-    <section>
-      <h2 class="text-sm font-semibold"><span class="text-gold">1.</span> ビールを選ぶ</h2>
-      <div id="beers" role="radiogroup" aria-label="ビールを選ぶ"
-           class="mt-4 flex items-start gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-5 px-5 scrollbar-hide">
-        <!-- ビールカードを JS で生成 -->
+const app = document.getElementById('app');
+
+/* === ストレージ + マイグレーション =================================
+   スキーマ版数を localStorage に持ち、起動時に逐次マイグレーションを適用。
+   将来データ形を変えるときは MIGRATIONS に1ステップ足して CURRENT を上げる。 */
+const RECORDS_KEY  = 'ebir.records';
+const SCHEMA_KEY   = 'ebir.schema';
+const CELEB_KEY    = 'ebir.celebrated';
+const LEGACY_V1    = 'ebir.mybeers.v1';
+const CURRENT_SCHEMA = 2;
+
+const uid = () => Date.now().toString(36) + Math.random().toString(16).slice(2, 8);
+const readJSON = (k, fallback) => { try { return JSON.parse(localStorage.getItem(k)) ?? fallback; } catch { return fallback; } };
+
+// MIGRATIONS[v] は スキーマ v → v+1 への変換。
+const MIGRATIONS = [
+  // 0 → 1: 旧フォーマット（ebir.mybeers.v1）から records へ取り込む
+  function to1() {
+    const legacy = readJSON(LEGACY_V1, []);
+    localStorage.setItem(RECORDS_KEY, JSON.stringify(legacy.map((it) => ({
+      id: it.id || uid(), beerId: it.beerId, rating: Number(it.rating) || 0,
+      note: it.note || '', date: it.date || new Date().toISOString(),
+    }))));
+  },
+  // 1 → 2: スキーマを正規化（欠損フィールドの補完・型の固定）
+  function to2() {
+    localStorage.setItem(RECORDS_KEY, JSON.stringify(readJSON(RECORDS_KEY, []).map((r) => ({
+      id: r.id || uid(), beerId: r.beerId, rating: Number(r.rating) || 0,
+      note: r.note || '', date: r.date || new Date().toISOString(),
+    }))));
+  },
+];
+function runMigrations() {
+  let v = Number(localStorage.getItem(SCHEMA_KEY) || 0);
+  while (v < CURRENT_SCHEMA) {
+    try { MIGRATIONS[v](); } catch (e) { console.error('migration', v, e); }
+    v += 1;
+    localStorage.setItem(SCHEMA_KEY, String(v));
+  }
+}
+const loadRecords = () => readJSON(RECORDS_KEY, []);
+const saveRecords = (items) => localStorage.setItem(RECORDS_KEY, JSON.stringify(items));
+
+/* === 集計 ========================================================== */
+function context(records) {
+  const visited = new Set(records.map((r) => r.beerId));
+  const activeBeers = BEERS.filter(isActive);
+  const visitedActive = activeBeers.filter((b) => visited.has(b.id));
+  const perBeer = {};
+  records.forEach((r) => { perBeer[r.beerId] = (perBeer[r.beerId] || 0) + 1; });
+  const stylesByDay = {};
+  records.forEach((r) => {
+    const day = new Date(r.date).toLocaleDateString('ja-JP');
+    const st = (beerById(r.beerId) || {}).style;
+    if (!st) return;
+    (stylesByDay[day] = stylesByDay[day] || new Set()).add(st);
+  });
+  return {
+    records, visited, activeBeers, visitedActive, perBeer, stylesByDay,
+    cups: records.length,
+    compDone: activeBeers.length > 0 && visitedActive.length === activeBeers.length,
+    compRate: activeBeers.length ? Math.round((visitedActive.length / activeBeers.length) * 100) : 0,
+  };
+}
+const compRateOf = (records) => context(records).compRate;
+
+/* === バッジ定義 ====================================================
+   earned(ctx) を満たすと獲得。hidden:true は未獲得のあいだ「???」表示。 */
+const BADGES = [
+  { id: 'first',     icon: '🍺', name: 'はじめの一杯',  hint: '最初の記録をつける',      earned: (c) => c.cups >= 1 },
+  { id: 'regular5',  icon: '🪑', name: '常連（5杯）',   hint: '5杯記録する',            earned: (c) => c.cups >= 5 },
+  { id: 'regular10', icon: '🍻', name: '常連（10杯）',  hint: '10杯記録する',           earned: (c) => c.cups >= 10 },
+  { id: 'regular25', icon: '👑', name: '常連（25杯）',  hint: '25杯記録する',           earned: (c) => c.cups >= 25 },
+  { id: 'complete',  icon: '🏆', name: 'コンプリート',  hint: '現行タップを全制覇',      earned: (c) => c.compDone },
+
+  // --- 隠しバッジ（獲得後に開示）---
+  { id: 'nightowl',  icon: '🌙', name: '夜更かし',   hint: '深い時間の一杯',  hidden: true, earned: (c) => c.records.some((r) => { const h = new Date(r.date).getHours(); return h >= 22 || h < 5; }) },
+  { id: 'encore',    icon: '🔁', name: 'おかわり',   hint: '同じ銘柄を3回',   hidden: true, earned: (c) => Object.values(c.perBeer).some((n) => n >= 3) },
+  { id: 'sommelier', icon: '👃', name: 'きき酒師',   hint: '1日で5スタイル',  hidden: true, earned: (c) => Object.values(c.stylesByDay).some((s) => s.size >= 5) },
+  { id: 'newhunter', icon: '🆕', name: '新作ハンター', hint: '新作をいち早く', hidden: true, earned: (c) => c.records.some((r) => (beerById(r.beerId) || {}).new) },
+  { id: 'legend',    icon: '🗝️', name: '伝説の一杯', hint: '終売した銘柄を記録', hidden: true, earned: (c) => c.records.some((r) => { const b = beerById(r.beerId); return b && !isActive(b); }) },
+  { id: 'knight',    icon: '🛡️', name: 'アーメットの騎士', hint: '真のÉBIR好きへ', hidden: true, earned: (c) => c.compDone && c.cups >= 25 },
+];
+const evaluateBadges = (ctx) => BADGES.map((b) => ({ ...b, got: !!b.earned(ctx) }));
+const earnedIds = (records) => { const c = context(records); return new Set(BADGES.filter((b) => b.earned(c)).map((b) => b.id)); };
+
+/* === 表示ヘルパー ================================================== */
+const escape = (s) => String(s).replace(/[&<>"']/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const swatch = (color) =>
+  `background:linear-gradient(180deg,#FBF7EF 0%,#FBF7EF 16%,${color || '#C9852B'} 42%,${color || '#C9852B'} 100%)`;
+const visual = (b, extra) =>
+  b.img
+    ? `<img src="${b.img}" alt="${escape(b.name)}" class="w-full h-full object-cover ${extra || ''}" />`
+    : `<div class="w-full h-full ${extra || ''}" style="${swatch(b.color)}"></div>`;
+const specLine = (b) => {
+  const parts = [];
+  if (b.style) parts.push(escape(b.style));
+  if (b.abv != null) parts.push(b.abv.toFixed(1) + '%');
+  if (b.ibu != null) parts.push('IBU ' + b.ibu);
+  return parts.join(' ・ ');
+};
+const fmtDate = (iso) => {
+  const d = new Date(iso);
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+};
+const fmtTime = (iso) => {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+const starText = (n) => '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n);
+
+// きろくの1件カード（タップで編集）
+function recordCard(r) {
+  const b = beerById(r.beerId) || { name: '（不明な銘柄）', color: '#C9852B' };
+  const thumb = b.img
+    ? `<img src="${b.img}" alt="" class="w-full h-full object-cover" />`
+    : `<div class="w-full h-full" style="${swatch(b.color)}"></div>`;
+  return `
+    <div data-edit="${r.id}" role="button" tabindex="0" class="rounded-2xl border border-ink/10 p-4 flex gap-4 cursor-pointer hover:border-gold/40 transition">
+      <div class="shrink-0 w-14 h-14 rounded-xl overflow-hidden ring-1 ring-ink/10">${thumb}</div>
+      <div class="min-w-0 flex-1">
+        <h3 class="font-semibold break-words leading-tight">${escape(b.name)}</h3>
+        <p class="mt-0.5 text-xs text-ink/40 tabular-nums">${fmtDate(r.date)} ${fmtTime(r.date)}</p>
+        ${r.rating ? `<p class="mt-1.5 text-gold tracking-widest text-sm">${starText(r.rating)}</p>` : ''}
+        ${r.note ? `<p class="mt-1.5 text-sm text-ink/70 whitespace-pre-wrap break-words">${escape(r.note)}</p>` : ''}
       </div>
+    </div>`;
+}
+
+/* === メインページ描画 ============================================= */
+let tapFilter = 'all';            // 'all' | 'unvisited'
+const expandedDays = new Set();   // 展開中の過去日（キーは fmtDate の文字列）
+
+function render() {
+  const records = loadRecords();
+  const ctx = context(records);
+  const badges = evaluateBadges(ctx);
+  const gotCount = badges.filter((x) => x.got).length;
+  const active = ctx.activeBeers;
+  const shown = tapFilter === 'unvisited' ? active.filter((b) => !ctx.visited.has(b.id)) : active;
+
+  // --- コンプ率バー（スリム1行）---
+  const banner = `
+    <div class="rounded-2xl border border-ink/10 px-4 py-3">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl font-bold leading-none ${ctx.compDone ? 'text-gold' : ''}">${ctx.compRate}<span class="text-sm">%</span></span>
+        <div class="min-w-0 flex-1">
+          <div class="flex justify-between text-[11px] text-ink/40 mb-1">
+            <span class="font-semibold uppercase tracking-widest">コンプ率</span>
+            <span>現行 ${ctx.visitedActive.length}/${active.length}種・${ctx.cups}杯</span>
+          </div>
+          <div class="h-1.5 rounded-full bg-ink/10 overflow-hidden">
+            <div class="h-full rounded-full ${ctx.compDone ? 'bg-gold' : 'bg-ink'}" style="width:${ctx.compRate}%"></div>
+          </div>
+        </div>
+      </div>
+      ${ctx.compDone ? '<p class="mt-2 text-xs text-gold font-semibold text-center">🏆 ラインナップ、制覇しました！</p>' : ''}
+    </div>`;
+
+  // --- タップリスト ---
+  const cards = shown.map((b) => {
+    const done = ctx.visited.has(b.id);
+    const n = ctx.perBeer[b.id] || 0;
+    return `
+      <button type="button" data-beer="${b.id}" class="beer-card snap-start shrink-0 w-32 text-left group">
+        <div class="relative aspect-[3/4] rounded-2xl overflow-hidden ring-1 ring-ink/10 transition group-hover:ring-gold group-active:ring-gold">
+          ${visual(b)}
+          ${done ? `<span class="absolute top-2 right-2 grid place-items-center min-w-7 h-7 px-1.5 rounded-full bg-gold text-ink text-sm font-bold shadow tabular-nums">${n > 1 ? n : '✓'}</span>` : ''}
+        </div>
+        <p class="mt-2 text-sm font-medium leading-tight break-words min-h-[2.5em]">${escape(b.name)}</p>
+        ${specLine(b) ? `<p class="text-xs text-gold leading-tight mt-0.5">${specLine(b)}</p>` : ''}
+      </button>`;
+  }).join('');
+  const grid = shown.length
+    ? `<div id="taps" class="mt-5 flex items-start gap-3 overflow-x-auto snap-x snap-mandatory pb-2 scrollbar-hide">${cards}</div>`
+    : `<div class="mt-5 rounded-2xl border border-dashed border-ink/15 py-14 text-center text-sm text-ink/40">
+         未飲の銘柄はありません。<br />ラインナップは制覇済みです 🎉</div>`;
+
+  // --- きろく（今日は展開、昨日より前は日でまとめてタップで展開）---
+  const todayKey = fmtDate(new Date().toISOString());
+  const groups = [];
+  const gIdx = {};
+  records.forEach((r) => {
+    const k = fmtDate(r.date);
+    if (!(k in gIdx)) { gIdx[k] = groups.length; groups.push({ key: k, items: [] }); }
+    groups[gIdx[k]].items.push(r);
+  });
+  const recList = records.length
+    ? groups.map((g) => {
+        if (g.key === todayKey) {
+          return `<div class="mt-5 space-y-4">${g.items.map(recordCard).join('')}</div>`;
+        }
+        const open = expandedDays.has(g.key);
+        return `
+        <div class="mt-3">
+          <button data-day="${g.key}" class="w-full flex items-center justify-between rounded-2xl border border-ink/10 px-4 py-3.5 text-left hover:border-gold/40 transition">
+            <span class="text-sm font-medium">${g.key}</span>
+            <span class="text-xs text-ink/40">${g.items.length}杯　${open ? '▲' : '▼'}</span>
+          </button>
+          ${open ? `<div class="mt-3 space-y-4">${g.items.map(recordCard).join('')}</div>` : ''}
+        </div>`;
+      }).join('')
+    : `<div class="mt-5 rounded-2xl border border-dashed border-ink/15 py-12 text-center text-sm text-ink/40">
+         まだ記録がありません。<br />上のラインナップから最初の一杯を記録しましょう。</div>`;
+
+  // --- バッジ ---
+  const badgeGrid = `
+    <div class="mt-4 grid grid-cols-3 sm:grid-cols-4 gap-3">
+      ${badges.map((b) => {
+        const locked = b.hidden && !b.got;
+        return `
+        <div class="rounded-2xl border p-3 text-center ${b.got ? 'border-gold ring-1 ring-gold/40 bg-gold/5' : 'border-ink/10 opacity-60'}">
+          <div class="text-3xl ${b.got ? '' : 'grayscale'}">${locked ? '🔒' : b.icon}</div>
+          <div class="mt-1.5 text-[11px] font-medium leading-tight">${locked ? '???' : escape(b.name)}</div>
+          <div class="mt-0.5 text-[10px] leading-tight ${b.got ? 'text-gold' : 'text-ink/35'}">${b.got ? '獲得' : (locked ? '？？？' : escape(b.hint))}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+  show(`
+    <section class="pt-2 text-center">
+      <h1 class="text-2xl font-bold">マイエビール記録</h1>
+      <p class="mt-1.5 text-sm text-ink/50">飲んだらタップして記録。<br class="sm:hidden" />記録はこの端末の中だけに保存されます。</p>
     </section>
 
-    <!-- Step 2: 評価とメモ -->
-    <section class="rounded-2xl border border-ink/10 p-5 space-y-5">
-      <h2 class="text-sm font-semibold"><span class="text-gold">2.</span> 評価とメモ</h2>
+    <div class="mt-6">${banner}</div>
 
-      <p id="selected" class="text-sm text-ink/50">上からビールを選んでください。</p>
+    <section class="mt-8">
+      <div class="flex items-center gap-2">
+        <h2 class="text-sm font-semibold">ラインナップ</h2>
+        <span class="ml-auto inline-flex gap-2">
+          <button data-filter="all"       class="rounded-full px-3.5 py-1 text-xs font-medium transition ${tapFilter === 'all' ? 'bg-ink text-paper' : 'ring-1 ring-ink/15 text-ink/60'}">すべて</button>
+          <button data-filter="unvisited" class="rounded-full px-3.5 py-1 text-xs font-medium transition ${tapFilter === 'unvisited' ? 'bg-ink text-paper' : 'ring-1 ring-ink/15 text-ink/60'}">未飲</button>
+        </span>
+      </div>
+      ${grid}
+    </section>
 
-      <div>
-        <span class="block text-sm font-medium">評価</span>
-        <div id="stars" class="mt-1.5 flex gap-1 text-3xl text-ink/20 select-none" role="radiogroup" aria-label="評価">
-          <button type="button" data-val="1" class="star transition hover:scale-110" aria-label="星1">★</button>
-          <button type="button" data-val="2" class="star transition hover:scale-110" aria-label="星2">★</button>
-          <button type="button" data-val="3" class="star transition hover:scale-110" aria-label="星3">★</button>
-          <button type="button" data-val="4" class="star transition hover:scale-110" aria-label="星4">★</button>
-          <button type="button" data-val="5" class="star transition hover:scale-110" aria-label="星5">★</button>
+    <section class="mt-10">
+      <div class="flex items-baseline justify-between">
+        <h2 class="text-sm font-semibold text-ink/40 uppercase tracking-widest">きろく</h2>
+        <span class="text-xs text-ink/40">${records.length ? records.length + '件' : ''}</span>
+      </div>
+      ${recList}
+    </section>
+
+    <section class="mt-10">
+      <div class="flex items-baseline justify-between">
+        <h2 class="text-sm font-semibold text-ink/40 uppercase tracking-widest">バッジ</h2>
+        <span class="text-xs text-ink/40">${gotCount}/${badges.length}</span>
+      </div>
+      ${badgeGrid}
+    </section>
+
+    <p class="mt-10 text-center text-[11px] text-ink/30">
+      <a href="qr.html" class="hover:text-gold transition">このアプリをQRコードでシェア</a>
+    </p>
+  `);
+
+  app.querySelectorAll('[data-filter]').forEach((btn) =>
+    btn.addEventListener('click', () => { tapFilter = btn.dataset.filter; render(); }));
+}
+function show(html) { app.innerHTML = html; }
+
+/* === 記録シート（ビールをタップで開く）============================= */
+let formRating = 0;
+
+const openCheckin = (beerId) => openSheet(beerId, null);
+function openEdit(recId) {
+  const r = loadRecords().find((x) => x.id === recId);
+  if (r) openSheet(r.beerId, recId);
+}
+
+// 記録シート。editId があれば既存記録の編集（すき度・メモ・削除）、なければ新規記録。
+function openSheet(beerId, editId) {
+  const b = beerById(beerId);
+  if (!b) return;
+  const editing = !!editId;
+  const rec = editing ? loadRecords().find((r) => r.id === editId) : null;
+  if (editing && !rec) return;
+  formRating = editing ? (rec.rating || 0) : 0;
+  const mine = loadRecords().filter((r) => r.beerId === beerId);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'sheet-overlay';
+  overlay.innerHTML = `
+    <div class="sheet px-5 pt-3 pb-8" role="dialog" aria-label="${escape(b.name)} を${editing ? '編集' : '記録'}">
+      <div class="mx-auto mb-4 h-1.5 w-10 rounded-full bg-ink/15"></div>
+
+      <div class="flex gap-4">
+        <div class="shrink-0 w-20 aspect-[3/4] rounded-xl overflow-hidden ring-1 ring-ink/10">${visual(b)}</div>
+        <div class="min-w-0 flex-1">
+          <h2 class="text-lg font-bold break-words leading-tight">${escape(b.name)}</h2>
+          ${specLine(b) ? `<p class="mt-1 text-sm text-gold font-medium">${specLine(b)}</p>` : ''}
+          ${editing
+            ? `<p class="mt-1 text-xs text-ink/50">${fmtDate(rec.date)} ${fmtTime(rec.date)} の記録を編集</p>`
+            : (mine.length ? `<p class="mt-1 text-xs text-ink/50">これまで ${mine.length}杯</p>` : '')}
         </div>
-        <input id="rating" type="hidden" value="0" />
       </div>
 
-      <div>
+      ${b.desc ? `<p class="mt-3 text-sm text-ink/70 leading-relaxed whitespace-pre-wrap">${escape(b.desc)}</p>` : ''}
+
+      <div class="mt-5">
+        <span class="block text-sm font-medium">お気に入り指数 <span class="text-ink/40 font-normal">（任意）</span></span>
+        <div id="stars" class="mt-1.5 flex gap-1.5 text-4xl text-ink/20 select-none" role="radiogroup" aria-label="お気に入り指数">
+          ${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-val="${n}" class="star transition active:scale-95" aria-label="星${n}">★</button>`).join('')}
+        </div>
+      </div>
+
+      <div class="mt-4">
         <label for="note" class="block text-sm font-medium">メモ <span class="text-ink/40 font-normal">（任意）</span></label>
-        <textarea id="note" rows="3" placeholder="香り、味わい、その日のことなど"
+        <textarea id="note" rows="2" placeholder="香り、味わい、その日のことなど"
                   class="mt-1.5 w-full rounded-xl border border-ink/15 px-4 py-3 text-base resize-y focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10"></textarea>
       </div>
 
-      <button id="submit" type="submit" disabled
-              class="w-full rounded-xl bg-gold text-ink py-3.5 text-sm font-semibold hover:bg-goldDark hover:text-paper transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-gold disabled:hover:text-ink">
-        記録する
-      </button>
-    </section>
-  </form>
+      <div class="mt-5 flex gap-3">
+        <button id="cancel" type="button" class="rounded-xl px-5 py-3.5 text-sm font-semibold ring-1 ring-ink/15 text-ink/60 hover:text-ink transition">閉じる</button>
+        <button id="save" type="button" class="flex-1 rounded-xl bg-gold text-ink py-3.5 text-sm font-semibold hover:bg-goldDark hover:text-paper transition">${editing ? '保存する' : '✓ 飲んだ！記録する'}</button>
+      </div>
 
-  <!-- List -->
-  <section class="mt-12">
-    <div class="flex items-baseline justify-between">
-      <h2 class="text-sm font-semibold text-ink/40 uppercase tracking-widest">きろく</h2>
-      <span id="count" class="text-xs text-ink/40"></span>
-    </div>
-    <div id="empty" class="mt-6 rounded-2xl border border-dashed border-ink/15 py-14 text-center text-sm text-ink/40">
-      まだ記録がありません。<br />最初の一杯を記録してみましょう。
-    </div>
-    <ul id="list" class="mt-6 space-y-4"></ul>
-  </section>
+      ${editing ? `<button id="delete" type="button" class="mt-3 w-full text-center text-xs text-ink/40 hover:text-gold transition">この記録を削除</button>` : ''}
 
-</main>
+      ${(!editing && mine.length) ? `
+      <div class="mt-6">
+        <h3 class="text-xs font-semibold text-ink/40 uppercase tracking-widest">この銘柄のきろく</h3>
+        <ul class="mt-3 space-y-2">${mine.map((r) => `
+          <li class="rounded-xl border border-ink/10 px-3 py-2 text-sm">
+            <span class="text-xs text-ink/40">${fmtDate(r.date)} ${fmtTime(r.date)}</span>
+            ${r.rating ? `<span class="ml-2 text-gold tracking-widest">${starText(r.rating)}</span>` : ''}
+            ${r.note ? `<p class="mt-0.5 text-ink/70 whitespace-pre-wrap break-words">${escape(r.note)}</p>` : ''}
+          </li>`).join('')}</ul>
+      </div>` : ''}
+    </div>`;
 
-<script>
-  // === ビール一覧（固定リスト）=====================================
-  // ここに1件足すだけでカルーセルに追加されます。
-  // img があれば写真、なければ color のビール色スウォッチで表示。
-  const BEERS = [
-    { id: 'aura',    name: 'AURA DE NADA',    style: 'Sour ・ 5.0% ・ IBU 7',  img: '../assets/aura-de-nada.jpg' },
-    { id: 'braggot', name: 'BRAGGOT WHISPER', style: 'Braggot ・ 5.5% ・ IBU 33', img: '../assets/braggot-whisper.jpg' },
-    { id: 'pine',    name: 'PINE ME DRIFT',   style: 'IPA ・ 8.0% ・ IBU 70',  color: '#B5651D' },
-    { id: 'lemon',   name: 'Peel My Lemon',   style: 'IPA ・ 5.0%',            color: '#E6B422' },
-    { id: 'forty',   name: 'FORTY OF HOPE',   style: '',                       color: '#C9852B' },
-    { id: 'brut',    name: 'IT BRUT',         style: 'Brut',                   color: '#EBD27A' },
-  ];
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('#cancel').addEventListener('click', close);
 
-  const STORAGE_KEY = 'ebir.mybeers.v1';
-  const load = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; } };
-  const save = (items) => localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-
-  const beersEl = document.getElementById('beers');
-  const selectedEl = document.getElementById('selected');
-  const ratingEl = document.getElementById('rating');
-  const starsEl = document.getElementById('stars');
-  const noteEl = document.getElementById('note');
-  const submitEl = document.getElementById('submit');
-  const form = document.getElementById('form');
-  const listEl = document.getElementById('list');
-  const emptyEl = document.getElementById('empty');
-  const countEl = document.getElementById('count');
-
-  let selectedId = null;
-
-  const escape = (s) => String(s).replace(/[&<>"']/g, (c) =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-
-  // ビール色スウォッチ（泡 → ビールのグラデーション）
-  const swatch = (color) =>
-    `background:linear-gradient(180deg,#FBF7EF 0%,#FBF7EF 16%,${color} 42%,${color} 100%)`;
-
-  // 視覚パーツ（写真 or スウォッチ）
-  const visual = (b, extraClass) =>
-    b.img
-      ? `<img src="${b.img}" alt="${escape(b.name)}" class="w-full h-full object-cover ${extraClass || ''}" />`
-      : `<div class="w-full h-full ${extraClass || ''}" style="${swatch(b.color)}"></div>`;
-
-  // === Step1: カルーセル生成 =======================================
-  const renderBeers = () => {
-    beersEl.innerHTML = BEERS.map((b) => `
-      <button type="button" data-id="${b.id}" role="radio" aria-checked="false"
-              class="beer-card snap-start shrink-0 w-32 text-left focus:outline-none">
-        <div class="card-visual aspect-[3/4] rounded-2xl overflow-hidden ring-1 ring-ink/10 transition">
-          ${visual(b)}
-        </div>
-        <p class="mt-2 text-sm font-medium leading-tight break-words min-h-[2.5em]">${escape(b.name)}</p>
-        ${b.style ? `<p class="text-xs text-gold leading-tight mt-0.5">${escape(b.style)}</p>` : ''}
-      </button>
-    `).join('');
-  };
-
-  const selectBeer = (id) => {
-    selectedId = id;
-    beersEl.querySelectorAll('.beer-card').forEach((card) => {
-      const on = card.dataset.id === id;
-      card.setAttribute('aria-checked', on ? 'true' : 'false');
-      card.querySelector('.card-visual').classList.toggle('ring-2', on);
-      card.querySelector('.card-visual').classList.toggle('ring-gold', on);
-      card.querySelector('.card-visual').classList.toggle('ring-ink/10', !on);
-    });
-    const b = BEERS.find((x) => x.id === id);
-    selectedEl.innerHTML = `選択中：<span class="font-semibold text-ink">${escape(b.name)}</span>`;
-    submitEl.disabled = false;
-  };
-
-  beersEl.addEventListener('click', (e) => {
-    const card = e.target.closest('.beer-card');
-    if (card) selectBeer(card.dataset.id);
+  const starsEl = overlay.querySelector('#stars');
+  const paint = (val) => starsEl.querySelectorAll('.star').forEach((s) => {
+    const on = Number(s.dataset.val) <= val;
+    s.classList.toggle('text-gold', on); s.classList.toggle('text-ink/20', !on);
   });
-
-  // === 星評価 ======================================================
-  const paintStars = (val) => {
-    starsEl.querySelectorAll('.star').forEach((s) => {
-      const on = Number(s.dataset.val) <= val;
-      s.classList.toggle('text-gold', on);
-      s.classList.toggle('text-ink/20', !on);
-    });
-  };
   starsEl.addEventListener('click', (e) => {
-    const btn = e.target.closest('.star');
-    if (!btn) return;
+    const btn = e.target.closest('.star'); if (!btn) return;
     const val = Number(btn.dataset.val);
-    const next = Number(ratingEl.value) === val ? 0 : val;
-    ratingEl.value = next;
-    paintStars(next);
+    formRating = formRating === val ? 0 : val;
+    paint(formRating);
   });
 
-  // === 表示ヘルパー ================================================
-  const fmtDate = (iso) => {
-    const d = new Date(iso);
-    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-  };
-  const starText = (n) => '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n);
+  const noteEl = overlay.querySelector('#note');
+  if (editing) { noteEl.value = rec.note || ''; paint(formRating); }
 
-  // === 一覧 ========================================================
-  const render = () => {
-    const items = load();
-    emptyEl.classList.toggle('hidden', items.length > 0);
-    countEl.textContent = items.length ? `${items.length}件` : '';
-    listEl.innerHTML = items.map((it) => {
-      const thumb = it.img
-        ? `<img src="${it.img}" alt="" class="w-full h-full object-cover" />`
-        : `<div class="w-full h-full" style="${swatch(it.color || '#C9852B')}"></div>`;
-      return `
-      <li class="rounded-2xl border border-ink/10 p-4 flex gap-4">
-        <div class="shrink-0 w-14 h-14 rounded-xl overflow-hidden ring-1 ring-ink/10">${thumb}</div>
-        <div class="min-w-0 flex-1">
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <h3 class="font-semibold break-words leading-tight">${escape(it.name)}</h3>
-              <p class="mt-0.5 text-xs text-ink/40">${fmtDate(it.date)}</p>
-            </div>
-            <button data-del="${it.id}" aria-label="削除" class="shrink-0 text-ink/30 hover:text-gold transition text-sm">削除</button>
-          </div>
-          ${it.rating ? `<p class="mt-1.5 text-gold tracking-widest text-sm">${starText(it.rating)}</p>` : ''}
-          ${it.note ? `<p class="mt-1.5 text-sm text-ink/70 whitespace-pre-wrap break-words">${escape(it.note)}</p>` : ''}
-        </div>
-      </li>`;
-    }).join('');
-  };
-
-  // === 追加 ========================================================
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const b = BEERS.find((x) => x.id === selectedId);
-    if (!b) return;
-    const items = load();
-    items.unshift({
-      id: String(Date.now()) + Math.random().toString(16).slice(2, 8),
-      beerId: b.id,
-      name: b.name,
-      img: b.img || null,
-      color: b.color || null,
-      rating: Number(ratingEl.value) || 0,
-      note: noteEl.value.trim(),
-      date: new Date().toISOString(),
-    });
-    save(items);
-    // リセット
-    selectedId = null;
-    selectedEl.textContent = '上からビールを選んでください。';
-    submitEl.disabled = true;
-    beersEl.querySelectorAll('.beer-card').forEach((c) => {
-      c.setAttribute('aria-checked', 'false');
-      const v = c.querySelector('.card-visual');
-      v.classList.remove('ring-2', 'ring-gold');
-      v.classList.add('ring-ink/10');
-    });
-    ratingEl.value = '0';
-    paintStars(0);
-    noteEl.value = '';
+  overlay.querySelector('#save').addEventListener('click', () => {
+    if (editing) updateRecord(editId, formRating, noteEl.value.trim());
+    else addRecord(beerId, formRating, noteEl.value.trim());
+    close();
     render();
   });
 
-  // === 削除 ========================================================
-  listEl.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-del]');
-    if (!btn) return;
+  if (editing) overlay.querySelector('#delete').addEventListener('click', () => {
     if (!confirm('この記録を削除しますか？')) return;
-    save(load().filter((it) => it.id !== btn.dataset.del));
+    deleteRecord(editId);
+    close();
     render();
   });
 
-  renderBeers();
-  render();
+  document.body.appendChild(overlay);
+}
+
+/* === 記録の追加・削除 ============================================== */
+function addRecord(beerId, rating, note) {
+  const records = loadRecords();
+  const before = compRateOf(records);
+  const beforeBadges = earnedIds(records);
+  records.unshift({ id: uid(), beerId, rating: Number(rating) || 0, note: note || '', date: new Date().toISOString() });
+  saveRecords(records);
+  const after = compRateOf(records);
+  // 新しく獲得したバッジのトースト（complete はコンプ演出があるので除く）
+  const afterBadges = earnedIds(records);
+  BADGES.forEach((b) => {
+    if (b.id !== 'complete' && afterBadges.has(b.id) && !beforeBadges.has(b.id)) showBadgeToast(b);
+  });
+  if (after >= 100 && before < 100 && !localStorage.getItem(CELEB_KEY)) {
+    localStorage.setItem(CELEB_KEY, '1');
+    celebrate();
+  }
+  if (after < 100) localStorage.removeItem(CELEB_KEY);
+}
+
+function updateRecord(id, rating, note) {
+  const records = loadRecords();
+  const r = records.find((x) => x.id === id);
+  if (!r) return;
+  r.rating = Number(rating) || 0;
+  r.note = note || '';
+  saveRecords(records);
+}
+
+function deleteRecord(id) {
+  saveRecords(loadRecords().filter((r) => r.id !== id));
+  if (compRateOf(loadRecords()) < 100) localStorage.removeItem(CELEB_KEY);
+}
+
+// クリック委譲: ビールタップ → 記録シート / 過去日の開閉 / 記録タップ → 編集
+app.addEventListener('click', (e) => {
+  const beer = e.target.closest('[data-beer]');
+  if (beer) { openCheckin(beer.dataset.beer); return; }
+  const day = e.target.closest('[data-day]');
+  if (day) { const k = day.dataset.day; expandedDays.has(k) ? expandedDays.delete(k) : expandedDays.add(k); render(); return; }
+  const edit = e.target.closest('[data-edit]');
+  if (edit) { openEdit(edit.dataset.edit); return; }
+});
+
+/* === バッジ獲得トースト ============================================ */
+function showBadgeToast(badge) {
+  let wrap = document.querySelector('.toast-wrap');
+  if (!wrap) { wrap = document.createElement('div'); wrap.className = 'toast-wrap'; document.body.appendChild(wrap); }
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = `
+    <span class="ic">${badge.icon}</span>
+    <div class="text-left">
+      <p class="text-[10px] font-bold tracking-widest text-gold uppercase leading-none">バッジ獲得</p>
+      <p class="text-sm font-semibold leading-tight mt-1">${escape(badge.name)}</p>
+    </div>`;
+  wrap.appendChild(t);
+  setTimeout(() => { t.remove(); if (wrap && !wrap.children.length) wrap.remove(); }, 2800);
+}
+
+/* === コンプ達成の金色演出 ========================================== */
+function celebrate() {
+  const el = document.createElement('div');
+  el.className = 'celebrate';
+  const sparks = Array.from({ length: 12 }, (_, i) =>
+    `<span class="spark" style="left:${8 + i * 7}%; top:${50 + (i % 3) * 8}%; animation-delay:${(i % 6) * 0.18}s"></span>`).join('');
+  el.innerHTML = `
+    ${sparks}
+    <div class="celebrate-card">
+      <div class="trophy">🏆</div>
+      <p class="mt-4 text-2xl font-bold tracking-wide">コンプリート！</p>
+      <p class="mt-1 text-sm text-paper/80">ラインナップ、全制覇おめでとうございます。</p>
+      <p class="mt-6 text-xs text-paper/60">タップして閉じる</p>
+    </div>`;
+  el.addEventListener('click', () => el.remove());
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 6000);
+}
+
+/* === 起動 ========================================================== */
+runMigrations();
+render();
 </script>
 
 </body>
