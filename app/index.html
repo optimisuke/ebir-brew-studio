@@ -77,8 +77,14 @@
   @keyframes toastIn { from { opacity: 0; transform: translateY(-14px) scale(.95) } to { opacity: 1; transform: translateY(0) scale(1) } }
   @keyframes toastPop { 0% { transform: scale(.4) rotate(-12deg) } 60% { transform: scale(1.25) rotate(6deg) } 100% { transform: scale(1) rotate(0) } }
 
+  /* 称号メダル: たまにキランと光が走る */
+  .medal::after { content: ""; position: absolute; top: -60%; left: -120%; width: 55%; height: 220%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.85), transparent);
+    transform: rotate(20deg); animation: medalShine 4s ease-in-out infinite; pointer-events: none; }
+  @keyframes medalShine { 0% { left: -120% } 15% { left: 170% } 100% { left: 170% } }
+
   @media (prefers-reduced-motion: reduce) {
-    .sheet-overlay, .sheet, .celebrate, .celebrate-card, .celebrate-card .trophy, .spark, .toast, .toast .ic { animation: none !important; }
+    .sheet-overlay, .sheet, .celebrate, .celebrate-card, .celebrate-card .trophy, .spark, .toast, .toast .ic, .medal::after { animation: none !important; }
   }
 </style>
 </head>
@@ -176,6 +182,8 @@ function context(records) {
   const visitedActive = activeBeers.filter((b) => visited.has(b.id));
   const perBeer = {};
   records.forEach((r) => { perBeer[r.beerId] = (perBeer[r.beerId] || 0) + 1; });
+  // 来店日数 = ユニークな日付の数（同日に何杯飲んでも1回）
+  const visitDays = new Set(records.map((r) => new Date(r.date).toLocaleDateString('ja-JP')));
   const stylesByDay = {};
   records.forEach((r) => {
     const day = new Date(r.date).toLocaleDateString('ja-JP');
@@ -185,6 +193,7 @@ function context(records) {
   });
   return {
     records, visited, activeBeers, visitedActive, perBeer, stylesByDay,
+    visitDays, visitDayCount: visitDays.size,
     cups: records.length,
     compDone: activeBeers.length > 0 && visitedActive.length === activeBeers.length,
     compRate: activeBeers.length ? Math.round((visitedActive.length / activeBeers.length) * 100) : 0,
@@ -211,6 +220,25 @@ const BADGES = [
 ];
 const evaluateBadges = (ctx) => BADGES.map((b) => ({ ...b, got: !!b.earned(ctx) }));
 const earnedIds = (records) => { const c = context(records); return new Set(BADGES.filter((b) => b.earned(c)).map((b) => b.id)); };
+
+/* === 称号定義 ======================================================
+   バッジ（複数・収集・永続）とは別物。称号は「1個・成長・上書き」。
+   来店日数（ユニークな日付の数）に応じて1つだけ決まり、通うほど昇格する。
+   days はその称号に到達するのに必要な来店日数の下限（しきい値）。
+   店に合わせて調整するときは days を書き換えるだけ。            */
+const TITLES = [
+  { lv: 1, name: '新麦', read: 'しんむぎ',   days: 0 },
+  { lv: 2, name: '麦汁', read: 'ばくじゅう', days: 1 },
+  { lv: 3, name: '発酵', read: 'はっこう',   days: 2 },
+  { lv: 4, name: '熟成', read: 'じゅくせい', days: 3 },
+  { lv: 5, name: '麦酒', read: 'ばくしゅ',   days: 4 },
+];
+// 来店日数から現在の称号と次の段階を求める純粋関数。
+function titleInfo(days) {
+  let idx = 0;
+  TITLES.forEach((t, i) => { if (days >= t.days) idx = i; });
+  return { current: TITLES[idx], next: TITLES[idx + 1] || null, days };
+}
 
 /* === 表示ヘルパー ================================================== */
 const escape = (s) => String(s).replace(/[&<>"']/g, (c) =>
@@ -256,6 +284,52 @@ function recordCard(r) {
     </div>`;
 }
 
+// コンプ率に応じた色（黒→ブロンズ→金へ少しずつ昇格）
+const compColor = (r) =>
+  r >= 100 ? '#E2A52A' : r >= 75 ? '#D29A22' : r >= 50 ? '#B5781F' : r >= 25 ? '#7C5A2E' : '#141414';
+
+// 称号のティアカラー（Lvが上がるほどストーン→ブロンズ→アンバー→金へ昇格）
+const TITLE_TIERS = {
+  1: { light: '#D9D3C7', base: '#A7A090', dark: '#7C766A' }, // 新麦: ストーン
+  2: { light: '#E7C9A0', base: '#C58E5A', dark: '#96652F' }, // 麦汁: ライトブロンズ
+  3: { light: '#E4B779', base: '#B5781F', dark: '#8A5A12' }, // 発酵: ブロンズ
+  4: { light: '#F1CE72', base: '#D29A22', dark: '#A2730F' }, // 熟成: アンバー
+  5: { light: '#F6D98C', base: '#E2A52A', dark: '#B97F16' }, // 麦酒: ゴールド
+};
+const tierOf = (lv) => TITLE_TIERS[lv] || TITLE_TIERS[1];
+
+// 称号カード（メダル風アイコン + 全体進捗ステッパー / コンパクト）
+function titleCard(ctx) {
+  const { current, next, days } = titleInfo(ctx.visitDayCount);
+  const tier = tierOf(current.lv);
+  // フラットデザイン: 単色塗り + 濃いめのリム（光沢グラデーションなし）
+  const medalStyle = `background:${tier.base};box-shadow:inset 0 0 0 3px ${tier.dark}`;
+  // Lv1→最高位の「ぜんたいでどこまで来たか」を段階バーで表示（到達した段は各Lvのティア色で塗る）
+  const steps = TITLES.map((t) =>
+    `<span class="h-1.5 flex-1 rounded-full" style="background:${days >= t.days ? tierOf(t.lv).base : 'rgba(20,20,20,.1)'}"></span>`).join('');
+  const caption = next
+    ? `次の<span class="font-semibold text-ink/55">${escape(next.name)}</span>まであと${Math.max(0, next.days - days)}日`
+    : `<span class="text-gold font-semibold">最高位に到達 🍺</span>`;
+  return `
+    <div class="rounded-2xl border border-ink/10 p-3 flex flex-col">
+      <div class="flex items-center gap-2.5">
+        <div class="medal relative overflow-hidden shrink-0 grid place-items-center w-11 h-11 rounded-full text-ink leading-none" style="${medalStyle}">
+          <span class="text-[7px] font-bold tracking-widest -mb-1.5">LV</span>
+          <span class="text-base font-extrabold tabular-nums -mt-1">${current.lv}</span>
+        </div>
+        <div class="min-w-0">
+          <p class="text-[10px] text-ink/40 tracking-widest font-semibold leading-none">称号</p>
+          <p class="text-lg font-bold leading-tight truncate">${escape(current.name)}</p>
+          <p class="text-[10px] text-ink/40 leading-none truncate">${escape(current.read)}</p>
+        </div>
+      </div>
+      <div class="mt-auto pt-2.5">
+        <div class="flex items-center gap-1">${steps}</div>
+        <p class="mt-1.5 text-[10px] text-ink/45 leading-tight">${caption}</p>
+      </div>
+    </div>`;
+}
+
 /* === メインページ描画 ============================================= */
 let tapFilter = 'all';            // 'all' | 'unvisited'
 const expandedDays = new Set();   // 展開中の過去日（キーは fmtDate の文字列）
@@ -268,22 +342,21 @@ function render() {
   const active = ctx.activeBeers;
   const shown = tapFilter === 'unvisited' ? active.filter((b) => !ctx.visited.has(b.id)) : active;
 
-  // --- コンプ率バー（スリム1行）---
+  // --- コンプ率（コンパクト / 進むほど色が金へ昇格）---
+  const cc = compColor(ctx.compRate);
   const banner = `
-    <div class="rounded-2xl border border-ink/10 px-4 py-3">
-      <div class="flex items-center gap-3">
-        <span class="text-2xl font-bold leading-none ${ctx.compDone ? 'text-gold' : ''}">${ctx.compRate}<span class="text-sm">%</span></span>
-        <div class="min-w-0 flex-1">
-          <div class="flex justify-between text-[11px] text-ink/40 mb-1">
-            <span class="font-semibold uppercase tracking-widest">コンプ率</span>
-            <span>現行 ${ctx.visitedActive.length}/${active.length}種・${ctx.cups}杯</span>
-          </div>
-          <div class="h-1.5 rounded-full bg-ink/10 overflow-hidden">
-            <div class="h-full rounded-full ${ctx.compDone ? 'bg-gold' : 'bg-ink'}" style="width:${ctx.compRate}%"></div>
-          </div>
-        </div>
+    <div class="rounded-2xl border border-ink/10 p-3 flex flex-col">
+      <div class="flex items-baseline justify-between">
+        <span class="text-2xl font-extrabold leading-none tabular-nums" style="color:${cc}">${ctx.compRate}<span class="text-xs font-bold">%</span></span>
+        <span class="text-[10px] text-ink/40 tabular-nums">${ctx.visitedActive.length}/${active.length}種</span>
       </div>
-      ${ctx.compDone ? '<p class="mt-2 text-xs text-gold font-semibold text-center">🏆 ラインナップ、制覇しました！</p>' : ''}
+      <p class="mt-1 text-[10px] text-ink/40 tracking-widest font-semibold uppercase">コンプ率</p>
+      <div class="mt-auto pt-2.5">
+        <div class="h-1.5 rounded-full bg-ink/10 overflow-hidden">
+          <div class="h-full rounded-full transition-all" style="width:${ctx.compRate}%;background:${cc}"></div>
+        </div>
+        <p class="mt-1.5 text-[10px] text-ink/45 leading-tight">${ctx.cups}杯記録${ctx.compDone ? ' ・ <span class="text-gold font-semibold">制覇🏆</span>' : ''}</p>
+      </div>
     </div>`;
 
   // --- タップリスト ---
@@ -352,7 +425,7 @@ function render() {
       <p class="mt-1.5 text-sm text-ink/50">飲んだらタップして記録。<br class="sm:hidden" />記録はこの端末の中だけに保存されます。</p>
     </section>
 
-    <div class="mt-6">${banner}</div>
+    <div class="mt-6 grid grid-cols-2 gap-3">${titleCard(ctx)}${banner}</div>
 
     <section class="mt-8">
       <div class="flex items-center gap-2">
@@ -502,9 +575,13 @@ function addRecord(beerId, rating, note) {
   const records = loadRecords();
   const before = compRateOf(records);
   const beforeBadges = earnedIds(records);
+  const beforeTitle = titleInfo(context(records).visitDayCount).current.lv;
   records.unshift({ id: uid(), beerId, rating: Number(rating) || 0, note: note || '', date: new Date().toISOString() });
   saveRecords(records);
   const after = compRateOf(records);
+  // 称号が昇格したらトースト（初回チェックインの Lv1→Lv2 もここで通知）
+  const afterTitle = titleInfo(context(records).visitDayCount);
+  if (afterTitle.current.lv > beforeTitle) showTitleToast(afterTitle.current);
   // 新しく獲得したバッジのトースト（complete はコンプ演出があるので除く）
   const afterBadges = earnedIds(records);
   BADGES.forEach((b) => {
@@ -552,6 +629,22 @@ function showBadgeToast(badge) {
     <div class="text-left">
       <p class="text-[10px] font-bold tracking-widest text-gold uppercase leading-none">バッジ獲得</p>
       <p class="text-sm font-semibold leading-tight mt-1">${escape(badge.name)}</p>
+    </div>`;
+  wrap.appendChild(t);
+  setTimeout(() => { t.remove(); if (wrap && !wrap.children.length) wrap.remove(); }, 2800);
+}
+
+// 称号アップのトースト（バッジとは別物。1個・成長・上書き）
+function showTitleToast(title) {
+  let wrap = document.querySelector('.toast-wrap');
+  if (!wrap) { wrap = document.createElement('div'); wrap.className = 'toast-wrap'; document.body.appendChild(wrap); }
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = `
+    <span class="ic">🎖️</span>
+    <div class="text-left">
+      <p class="text-[10px] font-bold tracking-widest text-gold uppercase leading-none">称号アップ Lv.${title.lv}</p>
+      <p class="text-sm font-semibold leading-tight mt-1">${escape(title.name)} <span class="text-xs text-ink/40 font-normal">${escape(title.read)}</span></p>
     </div>`;
   wrap.appendChild(t);
   setTimeout(() => { t.remove(); if (wrap && !wrap.children.length) wrap.remove(); }, 2800);
