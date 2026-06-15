@@ -493,7 +493,7 @@ function render() {
         <div class="h-1.5 rounded-full bg-ink/10 overflow-hidden">
           <div class="h-full rounded-full transition-all" style="width:${ctx.compRate}%;background:${cc}"></div>
         </div>
-        <p class="mt-1.5 text-[10px] text-ink/45 leading-tight">${ctx.cups}杯記録${ctx.compDone ? ' ・ <span class="text-gold font-semibold">制覇🏆</span>' : ''}</p>
+        <p class="mt-1.5 text-[10px] text-ink/45 leading-tight">${ctx.cups}杯記録${ctx.eventCount ? ` ・ イベント${ctx.eventCount}回` : ''}${ctx.compDone ? ' ・ <span class="text-gold font-semibold">制覇🏆</span>' : ''}</p>
       </div>
     </div>`;
 
