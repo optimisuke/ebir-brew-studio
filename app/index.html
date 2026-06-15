@@ -121,6 +121,8 @@
 
 <main id="app" class="mx-auto max-w-2xl px-5 pt-6 pb-20"><!-- JS で描画 --></main>
 
+<!-- イベントの種類（単一の情報源 / event.html と共通）-->
+<script src="event-types.js"></script>
 <script>
 /* =====================================================================
    ÉBIR BREW STUDIO — 来店者向けアプリ（タップリスト + 飲んだ記録 / 1ページ）
@@ -188,26 +190,106 @@ function runMigrations() {
 const loadRecords = () => readJSON(RECORDS_KEY, []);
 const saveRecords = (items) => localStorage.setItem(RECORDS_KEY, JSON.stringify(items));
 
+/* === データ移行（URL でのエクスポート / インポート）================
+   記録を base64(UTF-8) にして URL のハッシュ（#import=...）へ埋め込む。
+   ハッシュなのでサーバーには送られず、別端末で開くと localStorage を上書きする。 */
+function encodeRecords(records) {
+  const bytes = new TextEncoder().encode(JSON.stringify(records));
+  let bin = '';
+  bytes.forEach((b) => { bin += String.fromCharCode(b); });
+  return encodeURIComponent(btoa(bin));
+}
+function decodeRecords(str) {
+  const bin = atob(decodeURIComponent(str));
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+// 取り込むデータを現行スキーマの形に正規化（欠損補完・型固定・不正行の除去）
+// ビール記録とイベント記録（type:'event'）の両方を保つ。
+function normalizeRecords(data) {
+  if (!Array.isArray(data)) throw new Error('not an array');
+  return data
+    .map((r) => {
+      if (r && r.type === 'event') {
+        return {
+          id: r.id || uid(), type: 'event', eventId: r.eventId || uid(),
+          eventType: r.eventType || 'other', name: r.name || 'イベント',
+          note: r.note || '', date: r.date || new Date().toISOString(),
+        };
+      }
+      if (r && r.beerId) {
+        return {
+          id: r.id || uid(), beerId: r.beerId, rating: Number(r.rating) || 0,
+          note: r.note || '', date: r.date || new Date().toISOString(),
+        };
+      }
+      return null;
+    })
+    .filter(Boolean);
+}
+function buildExportURL() {
+  return location.origin + location.pathname + '#import=' + encodeRecords(loadRecords());
+}
+const clearHash = () => history.replaceState(null, '', location.pathname + location.search);
+
+// 起動時: #import=... があれば、ひとこと確認してから現在の記録を上書きする
+function maybeImport() {
+  const m = location.hash.match(/^#import=(.+)$/);
+  if (!m) return;
+  let incoming;
+  try { incoming = normalizeRecords(decodeRecords(m[1])); }
+  catch { alert('引き継ぎリンクが正しくありません。'); clearHash(); return; }
+  const ok = confirm(`引き継ぎデータ（記録 ${incoming.length}件）を読み込みます。\nこの端末の現在の記録は上書きされます。よろしいですか？`);
+  if (ok) {
+    saveRecords(incoming);
+    localStorage.setItem(SCHEMA_KEY, String(CURRENT_SCHEMA));
+    localStorage.removeItem(CELEB_KEY);
+  }
+  clearHash();
+}
+
+// 起動時: #event=... があれば（店内のイベントQR経由）、確認してから参加を記録する
+function maybeJoinEvent() {
+  const m = location.hash.match(/^#event=(.+)$/);
+  if (!m) return;
+  let ev;
+  try { ev = decodeRecords(m[1]); }
+  catch { alert('イベントリンクが正しくありません。'); clearHash(); return; }
+  if (!ev || !ev.id || !ev.name) { clearHash(); return; }
+  const t = eventTypeById(ev.type);
+  if (loadRecords().some((r) => r.type === 'event' && r.eventId === ev.id)) {
+    alert(`${t.icon}「${ev.name}」はすでに参加記録済みです。`);
+    clearHash(); return;
+  }
+  if (confirm(`${t.icon}「${ev.name}」に参加を記録しますか？`)) addEventRecord(ev);
+  clearHash();
+}
+
 /* === 集計 ========================================================== */
 function context(records) {
-  const visited = new Set(records.map((r) => r.beerId));
+  // ビール記録とイベント記録（type:'event'）を分けて集計する。
+  const beerRecords = records.filter((r) => r.beerId && r.type !== 'event');
+  const eventRecords = records.filter((r) => r.type === 'event');
+  const visited = new Set(beerRecords.map((r) => r.beerId));
   const activeBeers = BEERS.filter(isActive);
   const visitedActive = activeBeers.filter((b) => visited.has(b.id));
   const perBeer = {};
-  records.forEach((r) => { perBeer[r.beerId] = (perBeer[r.beerId] || 0) + 1; });
-  // 来店日数 = ユニークな日付の数（同日に何杯飲んでも1回）
+  beerRecords.forEach((r) => { perBeer[r.beerId] = (perBeer[r.beerId] || 0) + 1; });
+  // 来店日数 = ユニークな日付の数（飲んだ日・イベント参加日のどちらも来店とみなす）
   const visitDays = new Set(records.map((r) => new Date(r.date).toLocaleDateString('ja-JP')));
   const stylesByDay = {};
-  records.forEach((r) => {
+  beerRecords.forEach((r) => {
     const day = new Date(r.date).toLocaleDateString('ja-JP');
     const st = (beerById(r.beerId) || {}).style;
     if (!st) return;
     (stylesByDay[day] = stylesByDay[day] || new Set()).add(st);
   });
+  const eventTypesAttended = new Set(eventRecords.map((r) => r.eventType));
   return {
-    records, visited, activeBeers, visitedActive, perBeer, stylesByDay,
+    records, beerRecords, eventRecords, visited, activeBeers, visitedActive, perBeer, stylesByDay,
     visitDays, visitDayCount: visitDays.size,
-    cups: records.length,
+    eventCount: eventRecords.length, eventTypesAttended,
+    cups: beerRecords.length,
     compDone: activeBeers.length > 0 && visitedActive.length === activeBeers.length,
     compRate: activeBeers.length ? Math.round((visitedActive.length / activeBeers.length) * 100) : 0,
   };
@@ -224,13 +306,37 @@ const BADGES = [
   { id: 'complete',  icon: '🏆', name: 'コンプリート',  hint: '現行タップを全制覇',      earned: (c) => c.compDone },
 
   // --- 隠しバッジ（獲得後に開示）---
-  { id: 'nightowl',  icon: '🌙', name: '夜更かし',   hint: '深い時間の一杯',  hidden: true, earned: (c) => c.records.some((r) => { const h = new Date(r.date).getHours(); return h >= 22 || h < 5; }) },
+  { id: 'nightowl',  icon: '🌙', name: '夜更かし',   hint: '深い時間の一杯',  hidden: true, earned: (c) => c.beerRecords.some((r) => { const h = new Date(r.date).getHours(); return h >= 22 || h < 5; }) },
   { id: 'encore',    icon: '🔁', name: 'おかわり',   hint: '同じ銘柄を3回',   hidden: true, earned: (c) => Object.values(c.perBeer).some((n) => n >= 3) },
   { id: 'sommelier', icon: '👃', name: 'きき酒師',   hint: '1日で5スタイル',  hidden: true, earned: (c) => Object.values(c.stylesByDay).some((s) => s.size >= 5) },
-  { id: 'newhunter', icon: '🆕', name: '新作ハンター', hint: '新作をいち早く', hidden: true, earned: (c) => c.records.some((r) => (beerById(r.beerId) || {}).new) },
-  { id: 'legend',    icon: '🗝️', name: '伝説の一杯', hint: '終売した銘柄を記録', hidden: true, earned: (c) => c.records.some((r) => { const b = beerById(r.beerId); return b && !isActive(b); }) },
+  { id: 'newhunter', icon: '🆕', name: '新作ハンター', hint: '新作をいち早く', hidden: true, earned: (c) => c.beerRecords.some((r) => (beerById(r.beerId) || {}).new) },
+  { id: 'legend',    icon: '🗝️', name: '伝説の一杯', hint: '終売した銘柄を記録', hidden: true, earned: (c) => c.beerRecords.some((r) => { const b = beerById(r.beerId); return b && !isActive(b); }) },
   { id: 'knight',    icon: '🛡️', name: 'アーメットの騎士', hint: '真のÉBIR好きへ', hidden: true, earned: (c) => c.compDone && c.cups >= 25 },
 ];
+
+/* === イベント定義 ==================================================
+   店内に掲示するイベントQR から参加を記録する。種類は event-types.js（単一の
+   情報源 / event.html と共通）で定義し、追加するときはそのファイルだけ直す。
+   QR に種類が埋め込まれ、参加するとその種類のバッジを集められる。
+   QR は app/event.html で店主が発行（コード変更不要）。 */
+const EVENT_TYPES = window.EVENT_TYPES || [];
+const COLLECTIBLE_TYPES = EVENT_TYPES; // すべての種類が「集める」対象
+// 未知の id（廃止した種類や古い記録）でも壊れないようフォールバックを返す
+const eventTypeById = (id) => EVENT_TYPES.find((t) => t.id === id) || { id: id || 'event', icon: '🎪', name: 'イベント' };
+
+// 種類別バッジ（集める）＋ 全種類制覇 ＋ 参加回数バッジ。通常バッジの直後に差し込む。
+const EVENT_BADGES = [
+  ...COLLECTIBLE_TYPES.map((t) => ({
+    id: 'evt_' + t.id, icon: t.icon, name: t.name, hint: t.name + 'に参加',
+    earned: (c) => c.eventTypesAttended.has(t.id),
+  })),
+  { id: 'eventmaster', icon: '🏅', name: 'イベントマスター', hint: '全種類のイベントを制覇',
+    earned: (c) => COLLECTIBLE_TYPES.every((t) => c.eventTypesAttended.has(t.id)) },
+  { id: 'festival5',   icon: '🎪', name: '祭り常連',         hint: 'イベントに5回参加',
+    earned: (c) => c.eventCount >= 5 },
+];
+BADGES.splice(5, 0, ...EVENT_BADGES); // 'complete'（通常バッジ）の直後に集合バッジを並べる
+
 const evaluateBadges = (ctx) => BADGES.map((b) => ({ ...b, got: !!b.earned(ctx) }));
 const earnedIds = (records) => { const c = context(records); return new Set(BADGES.filter((b) => b.earned(c)).map((b) => b.id)); };
 
@@ -281,6 +387,7 @@ const starText = (n) => '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(
 
 // きろくの1件カード（タップで編集）
 function recordCard(r) {
+  if (r.type === 'event') return eventRecordCard(r);
   const b = beerById(r.beerId) || { name: '（不明な銘柄）', color: '#C9852B' };
   const thumb = b.img
     ? `<img src="${b.img}" alt="" class="w-full h-full object-cover" />`
@@ -292,6 +399,21 @@ function recordCard(r) {
         <h3 class="font-semibold break-words leading-tight">${escape(b.name)}</h3>
         <p class="mt-0.5 text-xs text-ink/40 tabular-nums">${fmtDate(r.date)} ${fmtTime(r.date)}</p>
         ${r.rating ? `<p class="mt-1.5 text-gold tracking-widest text-sm">${starText(r.rating)}</p>` : ''}
+        ${r.note ? `<p class="mt-1.5 text-sm text-ink/70 whitespace-pre-wrap break-words">${escape(r.note)}</p>` : ''}
+      </div>
+    </div>`;
+}
+
+// イベント参加の1件カード（金色寄りの見た目・タップでメモ編集/削除）
+function eventRecordCard(r) {
+  const t = eventTypeById(r.eventType);
+  return `
+    <div data-eventedit="${r.id}" role="button" tabindex="0" class="rounded-2xl border border-gold/40 bg-gold/5 p-4 flex gap-4 cursor-pointer hover:border-gold transition">
+      <div class="shrink-0 w-14 h-14 rounded-xl grid place-items-center bg-gold/15 text-2xl">${t.icon}</div>
+      <div class="min-w-0 flex-1">
+        <p class="text-[10px] font-bold tracking-widest text-gold uppercase leading-none">イベント参加 ・ ${escape(t.name)}</p>
+        <h3 class="mt-1 font-semibold break-words leading-tight">${escape(r.name || t.name)}</h3>
+        <p class="mt-0.5 text-xs text-ink/40 tabular-nums">${fmtDate(r.date)} ${fmtTime(r.date)}</p>
         ${r.note ? `<p class="mt-1.5 text-sm text-ink/70 whitespace-pre-wrap break-words">${escape(r.note)}</p>` : ''}
       </div>
     </div>`;
@@ -438,7 +560,7 @@ function render() {
   show(`
     <section class="pt-2 text-center">
       <h1 class="text-2xl font-bold">マイエビール記録</h1>
-      <p class="mt-1.5 text-sm text-ink/50">飲んだらタップして記録。<br class="sm:hidden" />記録はこの端末の中だけに保存されます。</p>
+      <p class="mt-1.5 text-sm text-ink/50">飲んだらタップして記録。<br class="sm:hidden" />記録はこの端末の中だけに保存されます。<button type="button" id="export" class="text-ink/35 underline decoration-ink/20 underline-offset-2 hover:text-gold transition">機種変更</button></p>
     </section>
 
     <div class="mt-6 grid grid-cols-2 gap-3">${titleCard(ctx)}${banner}</div>
@@ -477,11 +599,67 @@ function render() {
 
   app.querySelectorAll('[data-filter]').forEach((btn) =>
     btn.addEventListener('click', () => { tapFilter = btn.dataset.filter; render(); }));
+  app.querySelector('#export').addEventListener('click', openExportSheet);
+}
+
+/* === データ引き継ぎシート（リンクを発行して別端末へ移す）============ */
+function openExportSheet() {
+  const records = loadRecords();
+  if (!records.length) { alert('引き継ぐ記録がまだありません。'); return; }
+  const url = buildExportURL();
+  // 長い URL はメッセージアプリや QR で途切れることがあるので、その時だけ注意書きを出す
+  const longLink = url.length > 8000;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'sheet-overlay';
+  overlay.innerHTML = `
+    <div class="sheet px-5 pt-3 pb-8" role="dialog" aria-label="データの引き継ぎ">
+      <div class="mx-auto mb-4 h-1.5 w-10 rounded-full bg-ink/15"></div>
+      <h2 class="text-lg font-bold">データを引き継ぐ</h2>
+      <p class="mt-2 text-sm text-ink/60 leading-relaxed">下のリンクを<strong>新しい端末</strong>で開くと、記録 ${records.length}件を移せます。<br />リンクを開いた端末の記録は上書きされます。</p>
+      ${longLink ? `<p class="mt-2 text-xs text-gold/90 leading-relaxed">⚠️ 記録が多くリンクが長いため、メッセージアプリや QR では途切れることがあります。コピーして新しい端末のブラウザに直接貼り付けて開いてください。</p>` : ''}
+      <textarea id="exurl" readonly rows="3" class="mt-4 w-full rounded-xl border border-ink/15 px-3 py-2 text-xs break-all resize-none focus:border-ink focus:outline-none">${escape(url)}</textarea>
+      <div class="mt-4 flex gap-3">
+        <button id="excancel" type="button" class="rounded-xl px-5 py-3.5 text-sm font-semibold ring-1 ring-ink/15 text-ink/60 hover:text-ink transition">閉じる</button>
+        <button id="excopy" type="button" class="flex-1 rounded-xl bg-gold text-ink py-3.5 text-sm font-semibold hover:bg-goldDark hover:text-paper transition">リンクをコピー</button>
+      </div>
+    </div>`;
+
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('#excancel').addEventListener('click', close);
+
+  const copyBtn = overlay.querySelector('#excopy');
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const ta = overlay.querySelector('#exurl');
+      ta.focus(); ta.select();
+      try { document.execCommand('copy'); } catch {}
+    }
+    copyBtn.textContent = '✓ コピーしました';
+    setTimeout(() => { copyBtn.textContent = 'リンクをコピー'; }, 1800);
+  });
+
+  document.body.appendChild(overlay);
 }
 function show(html) { app.innerHTML = html; }
 
 /* === 記録シート（ビールをタップで開く）============================= */
 let formRating = 0;
+
+// メモの文字数上限（X 準拠の重み付け: 全角=2 / 半角=1。全角140文字 = 280）
+const NOTE_MAX = 280;
+function noteWeight(s) {
+  let w = 0;
+  for (const ch of s) {
+    const c = ch.codePointAt(0);
+    // ASCII と半角カナは 1、それ以外（全角・絵文字など）は 2
+    w += (c <= 0x7f || (c >= 0xff61 && c <= 0xff9f)) ? 1 : 2;
+  }
+  return w;
+}
 
 const openCheckin = (beerId) => openSheet(beerId, null);
 function openEdit(recId) {
@@ -529,6 +707,7 @@ function openSheet(beerId, editId) {
         <label for="note" class="block text-sm font-medium">メモ <span class="text-ink/40 font-normal">（任意）</span></label>
         <textarea id="note" rows="2" placeholder="香り、味わい、その日のことなど"
                   class="mt-1.5 w-full rounded-xl border border-ink/15 px-4 py-3 text-base resize-y focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10"></textarea>
+        <p id="notecount" class="mt-1 text-right text-[11px] text-ink/40 tabular-nums">0 / ${NOTE_MAX}</p>
       </div>
 
       <div class="mt-5 flex gap-3">
@@ -567,11 +746,27 @@ function openSheet(beerId, editId) {
   });
 
   const noteEl = overlay.querySelector('#note');
+  const countEl = overlay.querySelector('#notecount');
+  const saveBtn = overlay.querySelector('#save');
+  const updateCount = () => {
+    const w = noteWeight(noteEl.value);
+    const over = w > NOTE_MAX;
+    countEl.textContent = `${w} / ${NOTE_MAX}`;
+    countEl.classList.toggle('text-red-500', over);
+    countEl.classList.toggle('text-ink/40', !over);
+    saveBtn.disabled = over;
+    saveBtn.classList.toggle('opacity-40', over);
+    saveBtn.classList.toggle('pointer-events-none', over);
+  };
+  noteEl.addEventListener('input', updateCount);
   if (editing) { noteEl.value = rec.note || ''; paint(formRating); }
+  updateCount();
 
-  overlay.querySelector('#save').addEventListener('click', () => {
-    if (editing) updateRecord(editId, formRating, noteEl.value.trim());
-    else addRecord(beerId, formRating, noteEl.value.trim());
+  saveBtn.addEventListener('click', () => {
+    const note = noteEl.value.trim();
+    if (noteWeight(note) > NOTE_MAX) return;
+    if (editing) updateRecord(editId, formRating, note);
+    else addRecord(beerId, formRating, note);
     close();
     render();
   });
@@ -624,6 +819,100 @@ function deleteRecord(id) {
   if (compRateOf(loadRecords()) < 100) localStorage.removeItem(CELEB_KEY);
 }
 
+// イベント参加を記録（QR から1回。同じイベント=同じ eventId は二重登録しない）
+function addEventRecord(ev) {
+  const records = loadRecords();
+  if (records.some((r) => r.type === 'event' && r.eventId === ev.id)) return false;
+  const beforeBadges = earnedIds(records);
+  const beforeTitle = titleInfo(context(records).visitDayCount).current.lv;
+  records.unshift({
+    id: uid(), type: 'event', eventId: ev.id,
+    eventType: eventTypeById(ev.type).id, name: ev.name || eventTypeById(ev.type).name,
+    note: '', date: new Date().toISOString(),
+  });
+  saveRecords(records);
+  // 称号が昇格したらトースト（イベント参加日も来店日数に入る）
+  const afterTitle = titleInfo(context(records).visitDayCount);
+  if (afterTitle.current.lv > beforeTitle) showTitleToast(afterTitle.current);
+  // 新しく獲得したバッジのトースト
+  const afterBadges = earnedIds(records);
+  BADGES.forEach((b) => {
+    if (b.id !== 'complete' && afterBadges.has(b.id) && !beforeBadges.has(b.id)) showBadgeToast(b);
+  });
+  return true;
+}
+
+// イベント記録の編集シート（メモの追記・削除。種類/日時は保持）
+function openEventSheet(recId) {
+  const r = loadRecords().find((x) => x.id === recId);
+  if (!r) return;
+  const t = eventTypeById(r.eventType);
+  const overlay = document.createElement('div');
+  overlay.className = 'sheet-overlay';
+  overlay.innerHTML = `
+    <div class="sheet px-5 pt-3 pb-8" role="dialog" aria-label="${escape(r.name || t.name)} の記録">
+      <div class="mx-auto mb-4 h-1.5 w-10 rounded-full bg-ink/15"></div>
+      <div class="flex gap-4">
+        <div class="shrink-0 w-16 h-16 rounded-xl grid place-items-center bg-gold/15 text-3xl">${t.icon}</div>
+        <div class="min-w-0 flex-1">
+          <p class="text-[10px] font-bold tracking-widest text-gold uppercase leading-none">イベント参加 ・ ${escape(t.name)}</p>
+          <h2 class="mt-1 text-lg font-bold break-words leading-tight">${escape(r.name || t.name)}</h2>
+          <p class="mt-1 text-xs text-ink/50">${fmtDate(r.date)} ${fmtTime(r.date)} に参加</p>
+        </div>
+      </div>
+      <div class="mt-4">
+        <label for="evnote" class="block text-sm font-medium">メモ <span class="text-ink/40 font-normal">（任意）</span></label>
+        <textarea id="evnote" rows="2" placeholder="順位、戦績、その日のことなど"
+                  class="mt-1.5 w-full rounded-xl border border-ink/15 px-4 py-3 text-base resize-y focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10"></textarea>
+        <p id="evcount" class="mt-1 text-right text-[11px] text-ink/40 tabular-nums">0 / ${NOTE_MAX}</p>
+      </div>
+      <div class="mt-5 flex gap-3">
+        <button id="evcancel" type="button" class="rounded-xl px-5 py-3.5 text-sm font-semibold ring-1 ring-ink/15 text-ink/60 hover:text-ink transition">閉じる</button>
+        <button id="evsave" type="button" class="flex-1 rounded-xl bg-gold text-ink py-3.5 text-sm font-semibold hover:bg-goldDark hover:text-paper transition">保存する</button>
+      </div>
+      <button id="evdelete" type="button" class="mt-3 w-full text-center text-xs text-ink/40 hover:text-gold transition">この記録を削除</button>
+    </div>`;
+
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector('#evcancel').addEventListener('click', close);
+
+  const noteEl = overlay.querySelector('#evnote');
+  const countEl = overlay.querySelector('#evcount');
+  const saveBtn = overlay.querySelector('#evsave');
+  const updateCount = () => {
+    const w = noteWeight(noteEl.value);
+    const over = w > NOTE_MAX;
+    countEl.textContent = `${w} / ${NOTE_MAX}`;
+    countEl.classList.toggle('text-red-500', over);
+    countEl.classList.toggle('text-ink/40', !over);
+    saveBtn.disabled = over;
+    saveBtn.classList.toggle('opacity-40', over);
+    saveBtn.classList.toggle('pointer-events-none', over);
+  };
+  noteEl.addEventListener('input', updateCount);
+  noteEl.value = r.note || '';
+  updateCount();
+
+  saveBtn.addEventListener('click', () => {
+    const note = noteEl.value.trim();
+    if (noteWeight(note) > NOTE_MAX) return;
+    const recs = loadRecords();
+    const rec = recs.find((x) => x.id === recId);
+    if (rec) { rec.note = note; saveRecords(recs); }
+    close();
+    render();
+  });
+  overlay.querySelector('#evdelete').addEventListener('click', () => {
+    if (!confirm('この記録を削除しますか？')) return;
+    deleteRecord(recId);
+    close();
+    render();
+  });
+
+  document.body.appendChild(overlay);
+}
+
 // クリック委譲: ビールタップ → 記録シート / 過去日の開閉 / 記録タップ → 編集
 app.addEventListener('click', (e) => {
   const beer = e.target.closest('[data-beer]');
@@ -632,6 +921,8 @@ app.addEventListener('click', (e) => {
   if (day) { const k = day.dataset.day; expandedDays.has(k) ? expandedDays.delete(k) : expandedDays.add(k); render(); return; }
   const edit = e.target.closest('[data-edit]');
   if (edit) { openEdit(edit.dataset.edit); return; }
+  const ev = e.target.closest('[data-eventedit]');
+  if (ev) { openEventSheet(ev.dataset.eventedit); return; }
 });
 
 /* === バッジ獲得トースト ============================================ */
@@ -687,7 +978,12 @@ function celebrate() {
 
 /* === 起動 ========================================================== */
 runMigrations();
+maybeImport();
+maybeJoinEvent();
 render();
+
+// 同じタブで #import / #event のハッシュが変わったときも取り込む（再読込なしで反映）
+window.addEventListener('hashchange', () => { maybeImport(); maybeJoinEvent(); render(); });
 </script>
 
 </body>

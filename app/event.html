@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>イベントQRメーカー｜マイエビール記録｜ÉBIR BREW STUDIO</title>
+<meta name="description" content="店内イベント用の参加QRを発行する店舗向けページ。" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="theme-color" content="#141414" />
+<link rel="icon" href="../assets/favicon.ico" sizes="any" />
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png" />
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      fontFamily: { sans: ['Inter', 'system-ui', '-apple-system', '"Hiragino Kaku Gothic ProN"', '"Noto Sans JP"', 'sans-serif'] },
+      colors: { ink: '#141414', paper: '#ffffff', cream: '#FBF7EF', gold: '#E2A52A', goldDark: '#C0871C' },
+    } },
+  };
+</script>
+<!-- オフライン QR 生成（assets/vendor/qrcode.min.js にベンダリング） -->
+<script src="../assets/vendor/qrcode.min.js"></script>
+<!-- イベントの種類（単一の情報源 / index.html と共通）-->
+<script src="event-types.js"></script>
+<style>
+  body { -webkit-font-smoothing: antialiased; }
+  #qr canvas, #qr img { display: block; width: 100%; height: auto; max-width: 220px; margin: 0 auto; }
+</style>
+</head>
+
+<body class="bg-cream text-ink font-sans antialiased">
+
+<!-- Header（アプリと共通）-->
+<header class="sticky top-0 z-40 bg-paper/90 backdrop-blur border-b border-ink/10">
+  <div class="mx-auto max-w-2xl px-5 h-16 flex items-center justify-between">
+    <a href="../" class="flex items-center gap-2.5">
+      <img src="../assets/logo-mark.png" alt="ÉBIR BREW STUDIO" class="h-9 w-auto" />
+      <span class="flex items-center gap-1.5">
+        <span class="font-semibold tracking-wide text-sm">My ÉBIR</span>
+        <span class="text-[10px] font-bold leading-none tracking-widest text-ink bg-gold rounded px-1.5 py-1">APP</span>
+      </span>
+    </a>
+    <a href="./qr.html" class="text-xs text-ink/60 hover:text-gold transition">QR →</a>
+  </div>
+</header>
+
+<main class="mx-auto max-w-md px-5 py-8">
+  <p class="text-[11px] font-semibold uppercase tracking-[0.25em] text-gold">店舗向け</p>
+  <h1 class="mt-2 text-xl font-bold leading-snug">イベントQRメーカー</h1>
+  <p class="mt-2 text-sm text-ink/60 leading-relaxed">
+    店内イベント用の参加QRを発行します。来店者がこのQRを読み取ると、その種類の参加バッジが付きます。<br />
+    作ったQRはスクショして掲示・表示してください。
+  </p>
+
+  <!-- 入力フォーム -->
+  <div class="mt-6 space-y-4">
+    <div>
+      <label for="name" class="block text-sm font-medium">イベント名</label>
+      <input id="name" type="text" placeholder="例: 第3回 EBIR杯ボードゲーム大会"
+             class="mt-1.5 w-full rounded-xl border border-ink/15 px-4 py-3 text-base focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10" />
+    </div>
+    <div>
+      <label for="type" class="block text-sm font-medium">種類（集めるバッジ）</label>
+      <select id="type"
+              class="mt-1.5 w-full rounded-xl border border-ink/15 px-4 py-3 text-base bg-paper focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10"></select>
+    </div>
+    <div>
+      <label for="date" class="block text-sm font-medium">開催日</label>
+      <input id="date" type="date"
+             class="mt-1.5 w-full rounded-xl border border-ink/15 px-4 py-3 text-base bg-paper focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10" />
+      <p class="mt-1 text-[11px] text-ink/40">同じ名前・同じ日のQRは同じイベント扱いになり、二重に記録されません。</p>
+    </div>
+  </div>
+
+  <!-- 生成結果 -->
+  <div id="result" class="mt-7 hidden">
+    <p class="mb-2 text-[11px] text-ink/40 text-center">↓ このカードをスクショして掲示・表示</p>
+    <!-- スクショ用ポスターカード（これだけ撮れば掲示物になる）-->
+    <div id="poster" class="rounded-2xl bg-paper px-6 py-7 shadow-sm text-center">
+      <div class="flex items-center justify-center gap-2">
+        <img src="../assets/logo-mark.png" alt="ÉBIR BREW STUDIO" class="h-7 w-auto" />
+        <span class="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">My ÉBIR Event</span>
+      </div>
+      <p id="p-type" class="mt-5 text-4xl leading-none"></p>
+      <h2 id="p-name" class="mt-2 text-lg font-bold leading-snug break-words"></h2>
+      <p id="p-date" class="mt-1 text-sm text-ink/50 tabular-nums"></p>
+      <div class="mt-5 mx-auto w-fit rounded-xl bg-paper p-3 ring-1 ring-ink/10">
+        <div id="qr"></div>
+      </div>
+      <p class="mt-5 text-sm font-medium flex items-center justify-center gap-1.5">
+        <span class="text-gold">▲</span> スマホのカメラで読み取って参加記録
+      </p>
+      <p class="mt-2 text-[11px] text-ink/40">20歳未満の方の飲酒は法律で禁止されています。</p>
+    </div>
+    <!-- 操作（スクショには入れない）-->
+    <button id="copy" type="button" class="mt-4 w-full rounded-xl bg-ink text-paper py-3 text-sm font-semibold hover:bg-goldDark transition">リンクをコピー</button>
+    <a id="url" href="#" class="mt-3 block text-[11px] text-ink/30 hover:text-gold transition break-all text-center"></a>
+  </div>
+
+  <p class="mt-6 text-[11px] text-ink/40">
+    このページは店舗運営用です（検索エンジン非掲載）。
+  </p>
+</main>
+
+<script>
+  // event.html はアプリと同じ app/ ディレクトリにあるので、開いている場所を基準にする
+  // （本番では本番URL、ローカルプレビューでは localhost のリンクになる）
+  const APP_URL = new URL('./', location.href).href;
+  // 種類は event-types.js（index.html と共通）で定義。追加はそのファイルだけ直す。
+  const EVENT_TYPES = window.EVENT_TYPES || [];
+  const typeById = (id) => EVENT_TYPES.find((t) => t.id === id) || { id: id || 'event', icon: '🎪', name: 'イベント' };
+
+  // app/index.html の decodeRecords と対になるエンコード（base64(UTF-8 JSON)）
+  function encodeData(obj) {
+    const bytes = new TextEncoder().encode(JSON.stringify(obj));
+    let bin = '';
+    bytes.forEach((b) => { bin += String.fromCharCode(b); });
+    return encodeURIComponent(btoa(bin));
+  }
+  // 名前＋日付から安定した occurrence id を作る（同一イベントの二重登録を防ぐ）
+  function hashCode(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+  }
+
+  const $name = document.getElementById('name');
+  const $type = document.getElementById('type');
+  const $date = document.getElementById('date');
+  const $result = document.getElementById('result');
+  const $pType = document.getElementById('p-type');
+  const $pName = document.getElementById('p-name');
+  const $pDate = document.getElementById('p-date');
+  const $qr = document.getElementById('qr');
+  const $url = document.getElementById('url');
+  const $copy = document.getElementById('copy');
+  const fmtJa = (ymd) => {
+    const [y, m, d] = ymd.split('-');
+    return `${y}年${Number(m)}月${Number(d)}日`;
+  };
+
+  // 種類セレクトを構築
+  EVENT_TYPES.forEach((t) => {
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = `${t.icon} ${t.name}`;
+    $type.appendChild(opt);
+  });
+  // 開催日の初期値 = 今日
+  $date.value = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD（ローカル）
+
+  let currentURL = '';
+  function refresh() {
+    const name = $name.value.trim();
+    const t = typeById($type.value);
+    const ymd = ($date.value || '').replace(/-/g, '');
+    if (!name || !ymd) { $result.classList.add('hidden'); return; }
+    const ev = { id: `${ymd}-${hashCode(t.id + '|' + name)}`, type: t.id, name };
+    currentURL = APP_URL + '#event=' + encodeData(ev);
+
+    $pType.textContent = t.icon;
+    $pName.textContent = name;
+    $pDate.textContent = fmtJa($date.value);
+    $url.textContent = currentURL;
+    $url.href = currentURL;
+    $qr.innerHTML = '';
+    new QRCode($qr, {
+      text: currentURL, width: 220, height: 220,
+      colorDark: '#141414', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M,
+    });
+    $result.classList.remove('hidden');
+  }
+  [$name, $type, $date].forEach((el) => el.addEventListener('input', refresh));
+
+  $copy.addEventListener('click', async () => {
+    if (!currentURL) return;
+    try { await navigator.clipboard.writeText(currentURL); }
+    catch {}
+    $copy.textContent = '✓ コピーしました';
+    setTimeout(() => { $copy.textContent = 'リンクをコピー'; }, 1800);
+  });
+</script>
+
+</body>
+</html>
