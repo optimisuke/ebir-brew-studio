@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>マイエビール記録｜ÉBIR BREW STUDIO</title>
-<meta name="description" content="ÉBIR BREW STUDIO のタップリストと、飲んだ一杯の記録。コンプ率やバッジで一杯をもっと楽しく。データはこの端末内にだけ保存されます。" />
+<meta name="description" content="ÉBIR BREW STUDIO のラインナップと、飲んだ一杯の記録。コンプ率やバッジで一杯をもっと楽しく。データはこの端末内にだけ保存されます。" />
 <meta name="robots" content="index, follow" />
 <meta name="theme-color" content="#141414" />
 <link rel="canonical" href="https://optimisuke.github.io/ebir-brew-studio/app/" />
@@ -14,7 +14,7 @@
 
 <!-- OGP -->
 <meta property="og:title" content="マイエビール記録｜ÉBIR BREW STUDIO" />
-<meta property="og:description" content="ÉBIR BREW STUDIO のタップリストと、飲んだ一杯の記録。コンプ率やバッジで一杯をもっと楽しく。" />
+<meta property="og:description" content="ÉBIR BREW STUDIO のラインナップと、飲んだ一杯の記録。コンプ率やバッジで一杯をもっと楽しく。" />
 <meta property="og:image" content="https://optimisuke.github.io/ebir-brew-studio/assets/ogp.jpg" />
 <meta property="og:url" content="https://optimisuke.github.io/ebir-brew-studio/app/" />
 <meta property="og:type" content="website" />
@@ -335,7 +335,7 @@ const CORE_BADGES = [
   { id: 'regular25', icon: '👑', name: '常連（25杯）',  hint: '25杯記録する',       earned: (c) => c.cups >= 25 },
   { id: 'variety5',  icon: '🎨', name: '5種類達成',     hint: '5種類のビールを記録',  earned: (c) => c.triedCount >= 5 },
   { id: 'variety10', icon: '🌈', name: '10種類達成',    hint: '10種類のビールを記録', earned: (c) => c.triedCount >= 10 },
-  { id: 'complete',  icon: '🏆', name: 'コンプリート',  hint: '現行タップを全制覇', earned: (c) => c.compDone },
+  { id: 'complete',  icon: '🏆', name: 'コンプリート',  hint: '現行ビールを全制覇', earned: (c) => c.compDone },
 ];
 const HIDDEN_BADGES = [
   { id: 'nightowl',  icon: '🌙', name: '夜更かし',   hint: '深い時間の一杯',  hidden: true, earned: (c) => c.beerRecords.some((r) => { const h = new Date(r.date).getHours(); return h >= 22 || h < 5; }) },
@@ -490,11 +490,11 @@ function titleCard(ctx) {
         </div>
         <div class="min-w-0">
           <p class="text-[10px] text-ink/40 tracking-widest font-semibold leading-none">称号</p>
-          <p class="text-lg font-bold leading-tight truncate">${escape(current.name)}</p>
+          <p class="text-xl font-bold leading-tight truncate">${escape(current.name)}</p>
           <p class="text-[10px] text-ink/40 leading-none truncate">${escape(current.read)}</p>
         </div>
       </div>
-      <div class="mt-auto pt-2.5">
+      <div class="mt-2.5">
         <div class="flex items-center gap-1">${steps}</div>
         <p class="mt-1.5 text-[10px] text-ink/45 leading-tight">${caption}</p>
       </div>
@@ -513,24 +513,24 @@ function render() {
   const active = ctx.activeBeers;
   const shown = tapFilter === 'unvisited' ? active.filter((b) => !ctx.visited.has(b.id)) : active;
 
-  // --- コンプ率（コンパクト / 進むほど色が金へ昇格）---
+  // --- コンプ率（称号カードと同じ並び: ラベル → 値 → 小見出し → 下にバー + キャプション）---
   const cc = compColor(ctx.compRate);
   const banner = `
     <div class="rounded-2xl border border-ink/10 p-3 flex flex-col">
-      <div class="flex items-baseline justify-between">
-        <span class="text-2xl font-extrabold leading-none tabular-nums" style="color:${cc}">${ctx.compRate}<span class="text-xs font-bold">%</span></span>
-        <span class="text-[10px] text-ink/40 tabular-nums">${ctx.visitedActive.length}/${active.length}種</span>
+      <div class="h-12 flex flex-col justify-center">
+        <p class="text-[10px] text-ink/40 tracking-widest font-semibold leading-none">コンプ率</p>
+        <p class="text-xl font-bold leading-tight tabular-nums" style="color:${cc}">${ctx.compRate}<span class="text-sm font-bold">%</span></p>
+        <p class="text-[10px] text-ink/40 leading-none truncate tabular-nums">${ctx.visitedActive.length}/${active.length}種${ctx.compDone ? ' ・ 全制覇🏆' : ''}</p>
       </div>
-      <p class="mt-1 text-[10px] text-ink/40 tracking-widest font-semibold uppercase">コンプ率</p>
-      <div class="mt-auto pt-2.5">
+      <div class="mt-2.5">
         <div class="h-1.5 rounded-full bg-ink/10 overflow-hidden">
           <div class="h-full rounded-full transition-all" style="width:${ctx.compRate}%;background:${cc}"></div>
         </div>
-        <p class="mt-1.5 text-[10px] text-ink/45 leading-tight">${ctx.cups}杯記録${ctx.eventCount ? ` ・ イベント${ctx.eventCount}回` : ''}${ctx.compDone ? ' ・ <span class="text-gold font-semibold">制覇🏆</span>' : ''}</p>
+        <p class="mt-1.5 text-[10px] text-ink/45 leading-tight">${ctx.cups}杯記録${ctx.eventCount ? ` ・ イベント${ctx.eventCount}回` : ''}</p>
       </div>
     </div>`;
 
-  // --- タップリスト ---
+  // --- ラインナップ（横スワイプのカルーセル）---
   const cards = shown.map((b) => {
     const done = ctx.visited.has(b.id);
     const n = ctx.perBeer[b.id] || 0;
