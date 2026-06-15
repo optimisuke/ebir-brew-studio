@@ -135,14 +135,41 @@
    - img があれば写真、なければ color のビール色スウォッチで表示
    - active:false にすると一覧から外れます（記録とバッジ「伝説の一杯」には残る）
    - new:true は隠しバッジ「新作ハンター」の対象
-   - desc: 説明文（店主が随時追記。空でも可）                          */
+   - taste: 味わいの短いキーワード（例 'Malty, Smooth'。空でも可）
+   - pairing: ペアリング料理の配列（例 ['ローストポーク', 'ビターチョコ']。空でも可）
+   - desc: 説明文（店主が随時追記。空でも可）
+   taste / pairing / desc はビールをタップした記録シート（登録前）に表示される。 */
 const BEERS = [
-  { id: 'aura',    name: 'AURA DE NADA',    style: 'Sour',    abv: 5.0, ibu: 7,    img: '../assets/aura-de-nada.jpg',    desc: '' },
-  { id: 'braggot', name: 'BRAGGOT WHISPER', style: 'Braggot', abv: 5.5, ibu: 33,   img: '../assets/braggot-whisper.jpg', desc: '' },
-  { id: 'pine',    name: 'PINE ME DRIFT',   style: 'IPA',     abv: 8.0, ibu: 70,   color: '#B5651D', desc: '' },
-  { id: 'lemon',   name: 'Peel My Lemon',   style: 'IPA',     abv: 5.0, ibu: null, color: '#E6B422', desc: '', new: true },
-  { id: 'forty',   name: 'FORTY OF HOPE',   style: '',        abv: null, ibu: null, color: '#C9852B', desc: '' },
-  { id: 'brut',    name: 'IT BRUT',         style: 'Brut',    abv: null, ibu: null, color: '#EBD27A', desc: '' },
+  { id: 'bitter', name: 'A BIT OF BITTER', style: 'English Bitter w/ Star Anise', abv: 6.0, ibu: 15, img: '../assets/a-bit-of-bitter.jpg',
+    taste: 'Malty, Smooth', pairing: ['ローストポーク', 'ビターチョコ'],
+    desc: '5種の麦芽を巧みに組み合わせた、赤茶色のモルティ・ビター。穏やかな甘みと麦芽の旨味が広がる中、奥底に潜む八角が味わい全体を静かに引き締め、余韻に深みを添えます。飲み口は驚くほどクリアで、日常的に楽しみたくなる軽やかさ。温度が少し上がると、香りの層がふわりと開き、より豊かに感じられます。' },
+  { id: 'amurita', name: 'AMURITA DEW', style: 'Braggot', abv: 9.0, ibu: 8, img: '../assets/amurita-dew.jpg',
+    taste: 'Elegant, Smooth, Hoppy', pairing: ['ラムのグリル', 'ミモレット', 'ドライフルーツ'],
+    desc: '「不老不死の雫」を意味する、華やかで気品のあるブラゴット。ふんだんに使用した蜂蜜と、El Dorado＆Nelson Sauvinホップが織りなすワインのような芳香が広がります。甘さは控えめながら、アルコール度数は高め。それでも驚くほどするすると飲めてしまう、生命力に満ちた液体です。' },
+  { id: 'aura', name: 'AURA DE NADA', style: 'Sake Yeast Sour', abv: 5.0, ibu: 7, img: '../assets/aura-de-nada2.jpg',
+    taste: 'Aromatic, Delicate, Juicy, Elegant', pairing: ['セロリの浅漬け', '鯛の昆布締め'],
+    desc: '酒文化を深めてきた灘の酒造りに敬意を込めて醸した、清酒酵母を使用したサワー。酵母由来の繊細でフルーティな香りと、麦芽の旨味、そして乳酸発酵による酸味を融合させることで、伝統と新たな味わいを同時に体感できる酒を目指しました。' },
+  { id: 'plage', name: 'EAU DE PLAGE', style: 'Bergamot Gose', abv: 4.5, ibu: 9, img: '../assets/eau-de-plage.jpg',
+    taste: 'Refreshing, Juicy, Mineral', pairing: ['スモークベーコン', 'ソーセージ'],
+    desc: '浜辺を想起させる、清涼感あふれるゴーゼ。ベルガモット、ライムゼスト、レモンゼストが織りなす柑橘の香りと、岩塩由来の潮のミネラルが見事に調和。染み渡る酸味と塩味が、焼けた肌にスプラッシュ。' },
+  { id: 'hoji', name: 'HOJI GENTLEMAN', style: 'Kveik Hoji-tea IPA', abv: 7.0, ibu: 56, img: '../assets/hoji-gentleman.jpg',
+    taste: 'Toasty, Malty, Gentle', pairing: ['ローストポーク', '焼き茄子の味噌田楽'],
+    desc: 'Kveik酵母の柑橘のニュアンスとChinookホップのスパイシーさを掛け合わせた、シブい大人のIPA。フルーティさは控えめに、麦芽の旨さを感じられる絶妙なバランスに仕上げ、色味はIPAとしては珍しい褐色に。スッキリとした味わいながら、隠し味のほうじ茶がほろ苦さの輪郭を際立たせています。' },
+  { id: 'brut', name: 'IT BRUT', style: 'Brut Ale', abv: 6.0, ibu: 28, img: '../assets/it-brut.jpg',
+    taste: 'Crisp, Dry, Clean', pairing: ['鶏むね肉のハーブグリル', '白身魚のセビーチェ'],
+    desc: 'シャープな飲み口と、澄みきった余韻が際立つBrut Ale。米とグラニュー糖による完全発酵で、甘さを排したすっきりとした味わいに。ホワイトペッパーとジュニパーベリーが後味を引き締め、キレのあるフィニッシュを演出します。渇きを癒す一杯目に、ぜひ。' },
+  { id: 'lunar', name: 'LITTLE LUNAR WALK', style: 'New England IPA', abv: 4.5, ibu: 15, img: '../assets/little-lunar-walk.jpg', new: true,
+    taste: 'Airy, Mellow, Hazy, Clean', pairing: ['白身魚のカルパッチョ', '焼きとうもろこし'],
+    desc: '「ちょっと月まで、連れてって。」柔らかな空気を纏ったNew England IPA。ホップが描くトロピカル＆シトラスの香りに、なめらかな口当たりと控えめな苦み。レモンマートルの清涼感がもう一層を重ね、風のような余韻が、ふわりと心を宙に運びます。' },
+  { id: 'pine', name: 'PINE ME DRIFT', style: 'Double IPA', abv: 8.0, ibu: 70, img: '../assets/pine-me-drift.jpg',
+    taste: 'Dank, Piney, Resinous, Bold', pairing: ['スモークベーコン', 'ソーセージ'],
+    desc: '神戸東灘の美しい松の木々からインスピレーションを得た、ダンクでパイニーなIPA。ディップした松の濃厚な香りが溢れ出し、松林を漂うような感覚に。ホップの苦みも相まって、自然の力強さを感じる魅惑の一杯です。' },
+  { id: 'lemon', name: 'PEEL MY LEMON', style: 'West Coast IPA', abv: 5.0, ibu: 31, img: '../assets/peel-my-lemon.jpg',
+    taste: 'Citrusy, Crisp, Refreshing', pairing: ['スパイスカレー', '串揚げ', 'ポテトフライ'],
+    desc: 'アメリカ西海岸で生まれた、ホップ由来の柑橘アロマが特徴のIPA。レモンピールを漬け込み、ジューシーさを強調しつつ、Triumphホップの醸し出す複雑でフルーティな香りも加えて奥行きを持たせています。' },
+  { id: 'stout', name: 'YOUR EVERYDAY STOUT', style: 'Milk Stout Infused with Roasted Kombu', abv: 5.0, ibu: 13, img: '../assets/your-everyday-stout.jpg',
+    taste: 'Toasty, Smooth, Gentle', pairing: ['羊羹', '鴨ロースの燻製', '厚揚げの柚子胡椒焼き'],
+    desc: 'ÉBIR BREW STUDIOの１周年を記念して醸造したMilk Stout。コーヒーのような香りと軽い甘み、そして隠し味に昆布の旨味。春夏でも毎日飲めるスタウトを、皆さまの日々に寄り添いたい想いを込めて。' },
 ];
 const beerById = (id) => BEERS.find((b) => b.id === id);
 const isActive = (b) => b.active !== false;
@@ -503,7 +530,7 @@ function render() {
     const n = ctx.perBeer[b.id] || 0;
     return `
       <button type="button" data-beer="${b.id}" class="beer-card snap-start shrink-0 w-32 text-left group">
-        <div class="relative aspect-[3/4] rounded-2xl overflow-hidden ring-1 ring-ink/10 transition group-hover:ring-gold group-active:ring-gold">
+        <div class="relative aspect-square rounded-2xl overflow-hidden ring-1 ring-ink/10 transition group-hover:ring-gold group-active:ring-gold">
           ${visual(b)}
           ${done ? `<span class="absolute top-2 right-2 grid place-items-center min-w-7 h-7 px-1.5 rounded-full bg-gold text-ink text-sm font-bold shadow tabular-nums">${n > 1 ? n : '✓'}</span>` : ''}
         </div>
@@ -684,7 +711,7 @@ function openSheet(beerId, editId) {
       <div class="mx-auto mb-4 h-1.5 w-10 rounded-full bg-ink/15"></div>
 
       <div class="flex gap-4">
-        <div class="shrink-0 w-20 aspect-[3/4] rounded-xl overflow-hidden ring-1 ring-ink/10">${visual(b)}</div>
+        <div class="shrink-0 w-20 aspect-square rounded-xl overflow-hidden ring-1 ring-ink/10">${visual(b)}</div>
         <div class="min-w-0 flex-1">
           <h2 class="text-lg font-bold break-words leading-tight">${escape(b.name)}</h2>
           ${specLine(b) ? `<p class="mt-1 text-sm text-gold font-medium">${specLine(b)}</p>` : ''}
@@ -695,6 +722,12 @@ function openSheet(beerId, editId) {
       </div>
 
       ${b.desc ? `<p class="mt-3 text-sm text-ink/70 leading-relaxed whitespace-pre-wrap">${escape(b.desc)}</p>` : ''}
+
+      ${(b.taste || (b.pairing && b.pairing.length)) ? `
+      <dl class="mt-4 space-y-2 rounded-xl bg-cream px-4 py-3 text-sm">
+        ${b.taste ? `<div class="flex gap-3"><dt class="shrink-0 w-20 text-ink/40">味わい</dt><dd class="font-medium">${escape(b.taste)}</dd></div>` : ''}
+        ${(b.pairing && b.pairing.length) ? `<div class="flex gap-3"><dt class="shrink-0 w-20 text-ink/40">ペアリング</dt><dd class="font-medium">${b.pairing.map(escape).join(' ・ ')}</dd></div>` : ''}
+      </dl>` : ''}
 
       <div class="mt-5">
         <span class="block text-sm font-medium">お気に入り指数 <span class="text-ink/40 font-normal">（任意）</span></span>
