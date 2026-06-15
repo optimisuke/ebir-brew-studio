@@ -158,7 +158,7 @@ const BEERS = [
   { id: 'brut', name: 'IT BRUT', style: 'Brut Ale', abv: 6.0, ibu: 28, img: '../assets/it-brut.jpg',
     taste: 'Crisp, Dry, Clean', pairing: ['鶏むね肉のハーブグリル', '白身魚のセビーチェ'],
     desc: 'シャープな飲み口と、澄みきった余韻が際立つBrut Ale。米とグラニュー糖による完全発酵で、甘さを排したすっきりとした味わいに。ホワイトペッパーとジュニパーベリーが後味を引き締め、キレのあるフィニッシュを演出します。渇きを癒す一杯目に、ぜひ。' },
-  { id: 'lunar', name: 'LITTLE LUNAR WALK', style: 'New England IPA', abv: 4.5, ibu: 15, img: '../assets/little-lunar-walk.jpg', new: true,
+  { id: 'lunar', name: 'LITTLE LUNAR WALK', style: 'New England IPA', abv: 4.5, ibu: 15, img: '../assets/little-lunar-walk.jpg',
     taste: 'Airy, Mellow, Hazy, Clean', pairing: ['白身魚のカルパッチョ', '焼きとうもろこし'],
     desc: '「ちょっと月まで、連れてって。」柔らかな空気を纏ったNew England IPA。ホップが描くトロピカル＆シトラスの香りに、なめらかな口当たりと控えめな苦み。レモンマートルの清涼感がもう一層を重ね、風のような余韻が、ふわりと心を宙に運びます。' },
   { id: 'pine', name: 'PINE ME DRIFT', style: 'Double IPA', abv: 8.0, ibu: 70, img: '../assets/pine-me-drift.jpg',
@@ -270,7 +270,7 @@ function maybeImport() {
   if (ok) {
     saveRecords(incoming);
     localStorage.setItem(SCHEMA_KEY, String(CURRENT_SCHEMA));
-    localStorage.removeItem(CELEB_KEY);
+    clearCeleb();
   }
   clearHash();
 }
@@ -288,7 +288,7 @@ function maybeJoinEvent() {
     alert(`${t.icon}「${ev.name}」はすでに参加記録済みです。`);
     clearHash(); return;
   }
-  if (confirm(`${t.icon}「${ev.name}」に参加を記録しますか？`)) addEventRecord(ev);
+  if (confirm(`${t.icon}「${ev.name}」に参加を記録しますか？`)) reflectEffects(addEventRecord(ev));
   clearHash();
 }
 
@@ -317,6 +317,7 @@ function context(records) {
     visitDays, visitDayCount: visitDays.size,
     eventCount: eventRecords.length, eventTypesAttended,
     cups: beerRecords.length,
+    triedCount: visited.size, // 飲んだ銘柄の種類数（ユニーク）
     compDone: activeBeers.length > 0 && visitedActive.length === activeBeers.length,
     compRate: activeBeers.length ? Math.round((visitedActive.length / activeBeers.length) * 100) : 0,
   };
@@ -324,21 +325,24 @@ function context(records) {
 const compRateOf = (records) => context(records).compRate;
 
 /* === バッジ定義 ====================================================
-   earned(ctx) を満たすと獲得。hidden:true は未獲得のあいだ「???」表示。 */
-const BADGES = [
-  { id: 'first',     icon: '🍺', name: 'はじめの一杯',  hint: '最初の記録をつける',      earned: (c) => c.cups >= 1 },
-  { id: 'regular5',  icon: '🪑', name: '常連（5杯）',   hint: '5杯記録する',            earned: (c) => c.cups >= 5 },
-  { id: 'regular10', icon: '🍻', name: '常連（10杯）',  hint: '10杯記録する',           earned: (c) => c.cups >= 10 },
-  { id: 'regular25', icon: '👑', name: '常連（25杯）',  hint: '25杯記録する',           earned: (c) => c.cups >= 25 },
-  { id: 'complete',  icon: '🏆', name: 'コンプリート',  hint: '現行タップを全制覇',      earned: (c) => c.compDone },
-
-  // --- 隠しバッジ（獲得後に開示）---
+   earned(ctx) を満たすと獲得。hidden:true は未獲得のあいだ「???」表示。
+   通常（CORE）→ イベント（EVENT_BADGES）→ 隠し（HIDDEN）の順に並ぶ。
+   - 杯数（cups）: 記録した杯の総数   - 種類（triedCount）: 飲んだ銘柄のユニーク数 */
+const CORE_BADGES = [
+  { id: 'first',     icon: '🍺', name: 'はじめの一杯',  hint: '最初の記録をつける', earned: (c) => c.cups >= 1 },
+  { id: 'regular5',  icon: '🪑', name: '常連（5杯）',   hint: '5杯記録する',        earned: (c) => c.cups >= 5 },
+  { id: 'regular10', icon: '🍻', name: '常連（10杯）',  hint: '10杯記録する',       earned: (c) => c.cups >= 10 },
+  { id: 'regular25', icon: '👑', name: '常連（25杯）',  hint: '25杯記録する',       earned: (c) => c.cups >= 25 },
+  { id: 'variety5',  icon: '🍷', name: '5種類達成',     hint: '5種類のビールを記録',  earned: (c) => c.triedCount >= 5 },
+  { id: 'variety10', icon: '🥂', name: '10種類達成',    hint: '10種類のビールを記録', earned: (c) => c.triedCount >= 10 },
+  { id: 'complete',  icon: '🏆', name: 'コンプリート',  hint: '現行タップを全制覇', earned: (c) => c.compDone },
+];
+const HIDDEN_BADGES = [
   { id: 'nightowl',  icon: '🌙', name: '夜更かし',   hint: '深い時間の一杯',  hidden: true, earned: (c) => c.beerRecords.some((r) => { const h = new Date(r.date).getHours(); return h >= 22 || h < 5; }) },
   { id: 'encore',    icon: '🔁', name: 'おかわり',   hint: '同じ銘柄を3回',   hidden: true, earned: (c) => Object.values(c.perBeer).some((n) => n >= 3) },
   { id: 'sommelier', icon: '👃', name: 'きき酒師',   hint: '1日で5スタイル',  hidden: true, earned: (c) => Object.values(c.stylesByDay).some((s) => s.size >= 5) },
-  { id: 'newhunter', icon: '🆕', name: '新作ハンター', hint: '新作をいち早く', hidden: true, earned: (c) => c.beerRecords.some((r) => (beerById(r.beerId) || {}).new) },
-  { id: 'legend',    icon: '🗝️', name: '伝説の一杯', hint: '終売した銘柄を記録', hidden: true, earned: (c) => c.beerRecords.some((r) => { const b = beerById(r.beerId); return b && !isActive(b); }) },
-  { id: 'knight',    icon: '🛡️', name: 'アーメットの騎士', hint: '真のÉBIR好きへ', hidden: true, earned: (c) => c.compDone && c.cups >= 25 },
+  { id: 'newhunter', icon: '🆕', name: '新作ハンター', hint: '新作をいち早く記録', hidden: true, earned: (c) => c.beerRecords.some((r) => (beerById(r.beerId) || {}).new) },
+  { id: 'knight',    icon: '🦐', name: '甲殻類の王', hint: '全制覇＋通算25杯', hidden: true, earned: (c) => c.compDone && c.cups >= 25 },
 ];
 
 /* === イベント定義 ==================================================
@@ -362,7 +366,9 @@ const EVENT_BADGES = [
   { id: 'festival5',   icon: '🎪', name: '祭り常連',         hint: 'イベントに5回参加',
     earned: (c) => c.eventCount >= 5 },
 ];
-BADGES.splice(5, 0, ...EVENT_BADGES); // 'complete'（通常バッジ）の直後に集合バッジを並べる
+
+// 表示順: 通常 → イベント → 隠し
+const BADGES = [...CORE_BADGES, ...EVENT_BADGES, ...HIDDEN_BADGES];
 
 const evaluateBadges = (ctx) => BADGES.map((b) => ({ ...b, got: !!b.earned(ctx) }));
 const earnedIds = (records) => { const c = context(records); return new Set(BADGES.filter((b) => b.earned(c)).map((b) => b.id)); };
@@ -576,10 +582,11 @@ function render() {
       ${badges.map((b) => {
         const locked = b.hidden && !b.got;
         return `
-        <div class="rounded-2xl border p-3 text-center ${b.got ? 'border-gold ring-1 ring-gold/40 bg-gold/5' : 'border-ink/10 opacity-60'}">
+        <div class="relative rounded-2xl border p-3 text-center ${b.got ? 'border-gold ring-1 ring-gold/40 bg-gold/5' : 'border-ink/10 opacity-60'}">
+          ${b.got ? '<span class="absolute top-2 right-2 grid place-items-center w-5 h-5 rounded-full bg-gold text-paper text-[11px] font-bold leading-none shadow-sm">✓</span>' : ''}
           <div class="text-3xl ${b.got ? '' : 'grayscale'}">${locked ? '🔒' : b.icon}</div>
           <div class="mt-1.5 text-[11px] font-medium leading-tight">${locked ? '???' : escape(b.name)}</div>
-          <div class="mt-0.5 text-[10px] leading-tight ${b.got ? 'text-gold' : 'text-ink/35'}">${b.got ? '獲得' : (locked ? '？？？' : escape(b.hint))}</div>
+          <div class="mt-0.5 text-[10px] leading-tight ${b.got ? 'text-gold' : 'text-ink/35'}">${locked ? '？？？' : escape(b.hint)}</div>
         </div>`;
       }).join('')}
     </div>`;
@@ -798,10 +805,12 @@ function openSheet(beerId, editId) {
   saveBtn.addEventListener('click', () => {
     const note = noteEl.value.trim();
     if (noteWeight(note) > NOTE_MAX) return;
+    let res = null;
     if (editing) updateRecord(editId, formRating, note);
-    else addRecord(beerId, formRating, note);
+    else res = addRecord(beerId, formRating, note);
     close();
     render();
+    reflectEffects(res);
   });
 
   if (editing) overlay.querySelector('#delete').addEventListener('click', () => {
@@ -814,28 +823,45 @@ function openSheet(beerId, editId) {
   document.body.appendChild(overlay);
 }
 
-/* === 記録の追加・削除 ============================================== */
+/* === STORE: 記録の追加・更新・削除（localStorage 操作。DOM は触らない）===
+   追加系は「増えたバッジ／称号昇格／コンプ達成」を effects として返すだけ。
+   トーストや金色演出（UI）は呼び出し側が reflectEffects() で反映する。 */
+const getCeleb = () => !!localStorage.getItem(CELEB_KEY);
+const setCeleb = () => localStorage.setItem(CELEB_KEY, '1');
+const clearCeleb = () => localStorage.removeItem(CELEB_KEY);
+
+// 記録を1件追加し、変化（新規バッジ・称号昇格・コンプ達成）を計算して返す。
+function commitRecord(rec) {
+  const before = loadRecords();
+  const beforeBadges = earnedIds(before);
+  const beforeTitleLv = titleInfo(context(before).visitDayCount).current.lv;
+  const beforeRate = compRateOf(before);
+
+  saveRecords([rec, ...before]);
+
+  const ctx = context(loadRecords());
+  // complete はコンプ演出があるのでトースト対象から除く
+  const newBadges = BADGES.filter((b) => b.id !== 'complete' && b.earned(ctx) && !beforeBadges.has(b.id));
+  const afterTitle = titleInfo(ctx.visitDayCount).current;
+  const titleUp = afterTitle.lv > beforeTitleLv ? afterTitle : null;
+
+  let celebrate = false;
+  if (ctx.compRate >= 100 && beforeRate < 100 && !getCeleb()) { setCeleb(); celebrate = true; }
+  if (ctx.compRate < 100) clearCeleb();
+
+  return { newBadges, titleUp, celebrate };
+}
+
+// ビールの記録を追加（effects を返す）
 function addRecord(beerId, rating, note) {
-  const records = loadRecords();
-  const before = compRateOf(records);
-  const beforeBadges = earnedIds(records);
-  const beforeTitle = titleInfo(context(records).visitDayCount).current.lv;
-  records.unshift({ id: uid(), beerId, rating: Number(rating) || 0, note: note || '', date: new Date().toISOString() });
-  saveRecords(records);
-  const after = compRateOf(records);
-  // 称号が昇格したらトースト（初回チェックインの Lv1→Lv2 もここで通知）
-  const afterTitle = titleInfo(context(records).visitDayCount);
-  if (afterTitle.current.lv > beforeTitle) showTitleToast(afterTitle.current);
-  // 新しく獲得したバッジのトースト（complete はコンプ演出があるので除く）
-  const afterBadges = earnedIds(records);
-  BADGES.forEach((b) => {
-    if (b.id !== 'complete' && afterBadges.has(b.id) && !beforeBadges.has(b.id)) showBadgeToast(b);
-  });
-  if (after >= 100 && before < 100 && !localStorage.getItem(CELEB_KEY)) {
-    localStorage.setItem(CELEB_KEY, '1');
-    celebrate();
-  }
-  if (after < 100) localStorage.removeItem(CELEB_KEY);
+  return commitRecord({ id: uid(), beerId, rating: Number(rating) || 0, note: note || '', date: new Date().toISOString() });
+}
+
+// イベント参加を記録（QR から1回。同じ eventId は二重登録しない。重複時は null）
+function addEventRecord(ev) {
+  if (loadRecords().some((r) => r.type === 'event' && r.eventId === ev.id)) return null;
+  const t = eventTypeById(ev.type);
+  return commitRecord({ id: uid(), type: 'event', eventId: ev.id, eventType: t.id, name: ev.name || t.name, note: '', date: new Date().toISOString() });
 }
 
 function updateRecord(id, rating, note) {
@@ -849,30 +875,7 @@ function updateRecord(id, rating, note) {
 
 function deleteRecord(id) {
   saveRecords(loadRecords().filter((r) => r.id !== id));
-  if (compRateOf(loadRecords()) < 100) localStorage.removeItem(CELEB_KEY);
-}
-
-// イベント参加を記録（QR から1回。同じイベント=同じ eventId は二重登録しない）
-function addEventRecord(ev) {
-  const records = loadRecords();
-  if (records.some((r) => r.type === 'event' && r.eventId === ev.id)) return false;
-  const beforeBadges = earnedIds(records);
-  const beforeTitle = titleInfo(context(records).visitDayCount).current.lv;
-  records.unshift({
-    id: uid(), type: 'event', eventId: ev.id,
-    eventType: eventTypeById(ev.type).id, name: ev.name || eventTypeById(ev.type).name,
-    note: '', date: new Date().toISOString(),
-  });
-  saveRecords(records);
-  // 称号が昇格したらトースト（イベント参加日も来店日数に入る）
-  const afterTitle = titleInfo(context(records).visitDayCount);
-  if (afterTitle.current.lv > beforeTitle) showTitleToast(afterTitle.current);
-  // 新しく獲得したバッジのトースト
-  const afterBadges = earnedIds(records);
-  BADGES.forEach((b) => {
-    if (b.id !== 'complete' && afterBadges.has(b.id) && !beforeBadges.has(b.id)) showBadgeToast(b);
-  });
-  return true;
+  if (compRateOf(loadRecords()) < 100) clearCeleb();
 }
 
 // イベント記録の編集シート（メモの追記・削除。種類/日時は保持）
@@ -957,6 +960,14 @@ app.addEventListener('click', (e) => {
   const ev = e.target.closest('[data-eventedit]');
   if (ev) { openEventSheet(ev.dataset.eventedit); return; }
 });
+
+/* === UI: STORE アクションの effects を画面へ反映（トースト・金色演出）=== */
+function reflectEffects(res) {
+  if (!res) return;
+  if (res.titleUp) showTitleToast(res.titleUp);
+  res.newBadges.forEach(showBadgeToast);
+  if (res.celebrate) celebrate();
+}
 
 /* === バッジ獲得トースト ============================================ */
 function showBadgeToast(badge) {
