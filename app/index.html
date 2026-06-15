@@ -304,11 +304,12 @@ const compColor = (r) =>
 // 称号のティアカラー（Lvが上がるほどストーン→ブロンズ→アンバー→金へ昇格）
 const TITLE_TIERS = {
   // base=塗り, light=リム明色, dark=リム暗色, mark=ロゴと数字（同系の濃トーン）
-  1: { base: '#A7A090', light: '#C9C3B7', dark: '#7C766A', mark: '#4F4A42' }, // 新麦: ストーン
-  2: { base: '#C58E5A', light: '#E2B585', dark: '#96652F', mark: '#5E3E18' }, // 麦汁: ライトブロンズ
-  3: { base: '#B5781F', light: '#D8A24A', dark: '#8A5A12', mark: '#553809' }, // 発酵: ブロンズ
-  4: { base: '#D29A22', light: '#EBBE4E', dark: '#A2730F', mark: '#6E4D08' }, // 熟成: アンバー
-  5: { base: '#E2A52A', light: '#F4CC5C', dark: '#B97F16', mark: '#7E560C' }, // 麦酒: ゴールド
+  // 王道メタル: Lvが上がるほど 石→銅→銀→金→ダイヤ に昇格
+  1: { base: '#8C8A85', light: '#AFADAA', dark: '#656360', mark: '#434240' }, // 新麦: アイアン
+  2: { base: '#C77B3B', light: '#D8A376', dark: '#8F592A', mark: '#603B1C' }, // 麦汁: ブロンズ
+  3: { base: '#B4BAC2', light: '#CBCFD4', dark: '#82868C', mark: '#56595D' }, // 発酵: シルバー
+  4: { base: '#E2A52A', light: '#EBC06A', dark: '#A3771E', mark: '#6C4F14' }, // 熟成: ゴールド
+  5: { base: '#7CC4D6', light: '#A3D6E2', dark: '#598D9A', mark: '#3C5E67' }, // 麦酒: ダイヤ
 };
 const tierOf = (lv) => TITLE_TIERS[lv] || TITLE_TIERS[1];
 
