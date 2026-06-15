@@ -9,9 +9,11 @@
    種類を1つ足すと、アプリ側で対応する「集める」バッジ（evt_<id>）が自動で増え、
    「イベントマスター（全種類制覇）」の対象にも自動で加わる。 */
 window.EVENT_TYPES = [
-  { id: 'game',     icon: '🎲', name: 'ゲーム大会' },
-  { id: 'tasting',  icon: '🍻', name: '飲み比べ' },
-  { id: 'live',     icon: '🎸', name: 'ライブ' },
-  { id: 'workshop', icon: '🍽️', name: 'ワークショップ' },
-  { id: 'seasonal', icon: '🎉', name: '季節イベント' },
+  { id: 'yoga',        icon: '🧘', name: 'ビールヨガ' },
+  { id: 'plogging',    icon: '🏃', name: 'プロギング' },
+  { id: 'boardgame',   icon: '🎲', name: 'ボードゲーム会' },
+  { id: 'dj',          icon: '🎧', name: 'DJ Night' },
+  { id: 'anniversary', icon: '🎊', name: '周年祭' },
+  { id: 'sushi',       icon: '🍣', name: '寿司ナイト' },
+  { id: 'live',        icon: '🎸', name: 'ライブ' },
 ];
